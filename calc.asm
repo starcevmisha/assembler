@@ -4,9 +4,12 @@
 .data
 a=12
 b=10
-operat = '%'
+operat = '+'
 buff:	.ascii	"                                   \n" 
 lbuff = . - buff
+
+errormsg: .ascii "Мало аргументов: надо знак и два числа\n"
+lerrormsg = . - errormsg
 
 .text
 _start:
@@ -14,9 +17,18 @@ _start:
 	xor 		%rax, %rax	
 	movabsq		$a, %rax
 
-	xorl		%ecx, 	%ecx
+	pop %rdx 		# argc
+	cmp $4, %rdx
+	jne error
+
+	add $8, %rsp 	# пропускаем argc и arg[0]
+	pop %rdx
+	mov (%rdx),%rdx # помещаем первый аргумент
+
 	
-	mov			$operat, %dx
+bp:
+	
+	#mov			$operat, %dx
 	
 	cmp 		$0x2b, 	%dx # (+)
 	je 			addition
@@ -24,38 +36,91 @@ _start:
 	je 			subtraction
 	cmp			$0x2a, 	%dx # (*)
 	je			multiplication
+	cmp			$0x78, 	%dx # (x)
+	je			multiplication
 	cmp			$0x2f, 	%dx # (/)
 	je			division
 	cmp			$0x25, 	%dx # (%)
 	je			modul
+	
+	jmp error
 
-
-subtraction:
-	sub			$b, %rax
-	jmp			print	
 addition:
-	add			$b, %rax
-	jmp 		print
+b1:
+	call	read_args 
+	add		%r10, %rax
+	jmp		print
+subtraction:
+	call	read_args 
+	sub		%r10, %rax
+	jmp		print	
+
 multiplication:
-	imul		$b, %rax
+	call	read_args 
+	imul		%r10, %rax
 	jmp 		print
 division: # целая часть в %rax
-	mov			$10,  %rbx
-	xorq		%rdx, %rdx
-	div			%rbx
-	jmp 		print
+	call	read_args 
+	mov		%r10,  %rbx
+	xorq	%rdx, %rdx
+	div		%rbx
+	jmp 	print
 modul:
-	mov			$10,  %rbx
-	xorq		%rdx, %rdx
-	div			%rbx
-	mov			%rdx, %rax
-	jmp 		print
+	call	read_args 
+	mov		%r10,  %rbx
+	xorq	%rdx, %rdx
+	div		%rbx
+	mov		%rdx, %rax
+	jmp 	print
 
-
+error:
+	mov 		$1, %eax
+	mov 		$1, %edi
+	mov 		$errormsg, %rsi
+	mov 		$lerrormsg, %edx
+	syscall
+	jmp 		exit
+	
+char_to_int:
+	xor %rax, %rax 
+	xor %rcx, %rcx 
+	mov $10, %bx # Будем умножать цифры на 10
+	
+.loop:	
+	mov (%rsi), %cl
+	cmp $0, %cl # Если закончился ввод
+	je .return
+	
+	sub $48, %cl
+	mul %bx
+	
+	add %cx, %ax
+	
+	inc %rsi
+	
+	jmp .loop
+	
+.return:
+	ret
 	
 
+	 
 
-print:
+read_args:
+	pop %r12 # Запоинаем стек
+	pop 	%rsi
+	call	char_to_int
+	mov		%rax, %r10 # Почему сохраняем не в #rdx? Потому что 
+	pop 	%rsi
+	call	char_to_int
+	xchg %rax,%r10
+	push %r12
+	ret
+
+
+
+print: # Дальше выводим из стека
+	xorl		%ecx, 	%ecx
 	xor			%rbx, %rbx 
 	mov			$10, %rbx
 loop:
