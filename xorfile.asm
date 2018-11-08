@@ -57,6 +57,7 @@ read:
 	mov		$N, %rdx
 	syscall
 
+	push  %rax
 	cmp 	$0, %rax
 	jz 		exit	
 	
@@ -70,11 +71,12 @@ xor:
 	jmp 	xor
 
 
-write:	
+write:
+	mov 	%rax, %rdx
 	mov 	$1, %rax
 	mov 	%r12, %rdi
 	mov 	$buffer, %rsi
-	mov 	$N, %rdx
+
 	syscall
 	
 	jmp read
