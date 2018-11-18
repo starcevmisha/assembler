@@ -79,6 +79,7 @@ deep_search:
 	mov $char, %r8
 	inc %r8
 	mov %rdi, %r9
+	xor %r14, %r14
 	
 _loop:
 	mov (%r8), %al # берем первые байт
@@ -91,7 +92,7 @@ _loop:
 	jne _next
 	call read_block
 	mov %rsi, %rdi
-	xor %r14, %r14
+
 	mov $1, %r14 #Флаг показывающий, что перешагули на границе блоков
 	jmp _loop
 		
@@ -104,6 +105,7 @@ _loop:
 	push $-1 #не нашли
 	push %rcx
 	ret
+
 _success:
 	neg %r14
 	add %r13, %r14
@@ -164,7 +166,13 @@ _end:
 read_block:
 	inc %r13
 	pop %rbx
-
+	
+	mov	$0, %al
+	mov 	$buffer, %rdi
+	mov		$N, %rcx
+	cld	
+	rep stosb
+	
 	pop %rax
 	push %rax
 	mov		%rax, %rdi
