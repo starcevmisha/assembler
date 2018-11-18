@@ -1,7 +1,7 @@
 .globl _start
 
 .data
-.set N, 100
+.set N, 5
 .set OPEN, 2
 .set READ, 0
 .set O_RDONLY, 0
@@ -9,28 +9,40 @@
 errormsg: .asciz "Что-то не то\n"
 lerrormsg = . - errormsg
 filename: .asciz "1.txt"
-char: .asciz "world"
-buffer: .skip N
+char: .asciz "hello"
+buffer: .skip N+1
 
 print_buf: .asciz "                                  \n"
 lprint_buf = .-print_buf
 
+
+
 .text
 _start:
+	mov $-1, %r13
 	mov 	$OPEN, %rax
 	mov		$filename, %rdi
 	mov 	$O_RDONLY, %rsi
 	syscall
-	
+	push 	%rax
+
+read:
+	xor %rax, %rax
+	mov		$buffer, %rdi
+	mov   	$N, %rcx
+	rep   	stosb
+
+	inc %r13
+	pop %rax
+	push %rax
 	mov		%rax, %rdi
 	mov 	$READ, %rax
 	mov 	$buffer, %rsi
 	mov		$N, %rdx
 	syscall	
-	
-	
+		
 	cmp 	$0, %rax
-	jl 		error
+	je 		exit
 	mov %rax, %r14
 	
 
@@ -38,23 +50,44 @@ _start:
 	xor %rsi, %rsi
 	lea	buffer, %rdi
 first_char_loop:
-	mov $N, %ecx
+	
+	mov $N, %rcx
+	cmp $0, %r15
+	jg _next
+	mov $2, %r15 #смещение если не нашли
+	_next:
+	sub %r15, %rcx
 	xor %rax, %rax
-	movb (char), %al
-
+	
+	mov $char, %rbx
+	add %r9, %rbx # смещаем если нашли на границе блока
+	mov (%rbx), %al
+	xor %rbx, %rbx
+	
 	cld
 	repne   scasb
 	je found
 
 not_found:
-	jmp exit
+	jmp read
 found:
 	push %rdi #чтобы сохранить на стек и использовать потом
 	 
-	call deep_search	
+	call deep_search
 	pop %r15
+	
+	cmp $0, %r9
+	jg read # Если начало совпало и блок кончился то читаем след
+		
+
 	cmp $0, %r15
 	jl first_char_loop
+	
+	xor %rax, %rax ##Считаем правильно индекс с учетом блоков
+	mov $N, %rax
+	imul %r13, %rax
+	add %rax, %r15
+	
 	push %rdi #чтобы не потерять
 	push %r15
 	call print_int
@@ -79,6 +112,8 @@ _loop:
 	je _success
 	
 	mov (%r9), %bl # и сравниваем их
+	cmp $0, %bl
+	je _save_return
 	
 	inc %r8
 	inc	%r9
@@ -89,9 +124,18 @@ _loop:
 	push %rcx
 	ret
 _success:
+	xor %r9, %r9
 	mov 	%rdi, %r11
 	sub		$buffer, %r11
 	push %r11 # 
+	push %rcx
+	ret
+	
+_save_return: ##НАшли совпадения начала, но входня строка консилась
+	sub %rdi, %r9
+	inc %r9
+	
+	push $-1
 	push %rcx
 	ret
 #######################	
