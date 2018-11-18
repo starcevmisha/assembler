@@ -1,7 +1,7 @@
 .globl _start
 
 .data
-.set N, 5
+.set N, 100
 .set OPEN, 2
 .set READ, 0
 .set O_RDONLY, 0
@@ -10,6 +10,7 @@ errormsg: .asciz "Что-то не то\n"
 lerrormsg = . - errormsg
 filename: .asciz "1.txt"
 char: .asciz "hello"
+charl = .-char
 buffer: .skip N+1
 
 print_buf: .asciz "                                  \n"
@@ -27,42 +28,17 @@ _start:
 	push 	%rax
 
 read:
-	xor %rax, %rax
-	mov		$buffer, %rdi
-	mov   	$N, %rcx
-	rep   	stosb
+	call read_block
+	mov $buffer, %rdi
 
-	inc %r13
-	pop %rax
-	push %rax
-	mov		%rax, %rdi
-	mov 	$READ, %rax
-	mov 	$buffer, %rsi
-	mov		$N, %rdx
-	syscall	
-		
-	cmp 	$0, %rax
-	je 		exit
-	mov %rax, %r14
-	
-
-	mov $0, %r15
-	xor %rsi, %rsi
-	lea	buffer, %rdi
 first_char_loop:
 	
-	mov $N, %rcx
-	cmp $0, %r15
-	jg _next
-	mov $2, %r15 #смещение если не нашли
-	_next:
-	sub %r15, %rcx
-	xor %rax, %rax
-	
-	mov $char, %rbx
-	add %r9, %rbx # смещаем если нашли на границе блока
-	mov (%rbx), %al
-	xor %rbx, %rbx
+	push %rdi
+	call length_rdi
+	cmp $0, %rcx
+	je read
+	pop %rdi
+	movb char, %al	
 	
 	cld
 	repne   scasb
@@ -76,22 +52,17 @@ found:
 	call deep_search
 	pop %r15
 	
-	cmp $0, %r9
-	jg read # Если начало совпало и блок кончился то читаем след
 		
-
 	cmp $0, %r15
 	jl first_char_loop
 	
-	xor %rax, %rax ##Считаем правильно индекс с учетом блоков
-	mov $N, %rax
-	imul %r13, %rax
-	add %rax, %r15
 	
 	push %rdi #чтобы не потерять
+
 	push %r15
+	xor %rdi, %rdi
 	call print_int
-	pop %rdi
+	pop %rdi	
 	jmp first_char_loop
 	
 
@@ -99,7 +70,11 @@ found:
 
 ########################
 deep_search:
-	pop %rcx
+	mov		$buffer, %rsi 
+	mov 	%rdi, %r12
+	sub		$buffer, %r12 # индекс начала подстроки
+
+	pop %r10
 	pop	%rdi
 	mov $char, %r8
 	inc %r8
@@ -111,12 +86,18 @@ _loop:
 	cmp %al, %bl
 	je _success
 	
-	mov (%r9), %bl # и сравниваем их
+	mov (%rdi), %bl #Если блок кончился
 	cmp $0, %bl
-	je _save_return
-	
+	jne _next
+	call read_block
+	mov %rsi, %rdi
+	xor %r14, %r14
+	mov $1, %r14 #Флаг показывающий, что перешагули на границе блоков
+	jmp _loop
+		
+	_next:
 	inc %r8
-	inc	%r9
+	inc	%rdi
 	cmp %al, %bl
 	je _loop
 	
@@ -124,11 +105,15 @@ _loop:
 	push %rcx
 	ret
 _success:
-	xor %r9, %r9
-	mov 	%rdi, %r11
-	sub		$buffer, %r11
-	push %r11 # 
-	push %rcx
+	neg %r14
+	add %r13, %r14
+	xor %rax, %rax ##Считаем правильно индекс с учетом блоков
+	mov $N, %rax
+	imul %r14, %rax
+	add %rax, %r12
+	
+	push %r12 # 
+	push %r10
 	ret
 	
 _save_return: ##НАшли совпадения начала, но входня строка консилась
@@ -175,10 +160,37 @@ loop:
 _end:	
 	ret
 
+###############################
+read_block:
+	inc %r13
+	pop %rbx
 
+	pop %rax
+	push %rax
+	mov		%rax, %rdi
+	mov 	$READ, %rax
+	mov 	$buffer, %rsi
+	mov		$N, %rdx
+	syscall	
+		
+	cmp 	$0, %rax
+	je 		exit
+	mov %rax, %r14
+	push %rbx
+	xor %rbx, %rbx
+	ret
 
 ###############################
-
+length_rdi:
+	xor		%eax, %eax
+	xor		%ecx, %ecx
+	dec 	%ecx
+	repne scasb  # идет по строке из %rdx и сравнивает по байтно с %al, где у нас лежит 0
+	neg		%ecx # в ecx будет лежать -1 -(длина строки)
+	dec 	%ecx
+	dec %ecx
+	ret
+#####################3
 error:
 	mov 	$1, %eax
 	mov 	$1, %edi
