@@ -18,7 +18,7 @@ nl: .byte 0xa
 dictn: .quad 4 
 
 protocol: .asciz "ab:/" 
-protocolst: .quad  _st4, _st3, _st2, _st1,_st1 # В обратном порядке
+protocolst: .quad  _st3, _st3, _st2, _st1,_st1 # В обратном порядке
 
 colon: .asciz "/" 
 colonst: .quad _st4, _st5 #_st5 - считать слэш
@@ -130,7 +130,12 @@ _st3:  #читаем слэш Значит был не протокол а ад�
 	mov 	$LEN, %rdx 
 	call 	_write 
 	call 	_nline 
-	jmp 	_exit
+
+	
+	mov 	$slash1st, %r8
+	mov		$1, %rcx
+
+
 	ret  
 
 _st4://Если левый символ
