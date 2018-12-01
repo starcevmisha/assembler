@@ -2,15 +2,17 @@
 .set SYS_WRITE, 1 
 .set SYS_EXIT, 60 
 .set STDOUT, 1 
-.set LEN, 10 
+.set LEN, 100 
 
 buf: .skip LEN 
 count: .byte 0 
 
 protstr: .ascii "Протокол: " 
 protstrl =. - protstr
-adresstr: .ascii "Адресс: " 
-adresstrl =. - adresstr
+hoststr: .ascii "Хост: " 
+hoststrl =. - hoststr
+urlpathstr: .ascii "URL-путь: " 
+urlpathstrl =. - urlpathstr
 
 
 nl: .byte 0xa 
@@ -30,7 +32,10 @@ slash2: .asciz "ab."
 slash2st: .quad _st4, _st7,_st7, _st7 
 
 address: .asciz "ab./"
-addressst: .quad _st3, _st3, _st1, _st1, _st1
+addressst: .quad _st3, _st8, _st1, _st1, _st1
+
+path: .asciz "ab./"
+pathst: .quad _st9, _st1, _st1, _st1, _st1
 
 
 
@@ -97,7 +102,7 @@ _st7: //читаем буквы из адресса
 	
 	mov 	$addressst, %r8
 	mov		$4, %rcx
-	call _st1
+	call 	_st1
 	ret
 
 _st2: #читаем двоеточие после протокола и выводим протокол
@@ -122,19 +127,27 @@ _st2: #читаем двоеточие после протокола и выво
 	ret  
 
 _st3:  #читаем слэш Значит был не протокол а адресс
-	lea 	adresstr, %rsi 
-	mov 	$adresstrl, %rdx 
+	lea 	hoststr, %rsi 
+	mov 	$hoststrl, %rdx 
 	call 	_write
 
 	lea 	buf, %rsi 
 	mov 	$LEN, %rdx 
 	call 	_write 
-	call 	_nline 
+	call 	_nline
+	
+	call reset_buffer
+ 
 
 	
-	mov 	$slash1st, %r8
-	mov		$1, %rcx
-
+	pop 	%r10
+	pop 	%rdi
+	lea 	path, %rdi
+	push 	%rdi
+	push 	%r10
+	
+	mov 	$pathst, %r8
+	mov		$4, %rcx
 
 	ret  
 
@@ -164,8 +177,42 @@ _st6:
 	mov		$3, %rcx
 	ret
 	
-_st8:
+_st8: # адресс закончился, перходим к path
+	lea 	hoststr, %rsi 
+	mov 	$hoststrl, %rdx 
+	call 	_write
+	lea 	buf, %rsi 
+	mov 	$LEN, %rdx 
+	call 	_write 
+	call 	_nline
+	
+	call reset_buffer
+ 
+	
+	pop 	%r10
+	pop 	%rdi
+	lea 	path, %rdi
+	push 	%rdi
+	push 	%r10
+	
+	mov 	$pathst, %r8
+	mov		$4, %rcx
+	ret
+
+_st9: #url кончился
+	lea 	urlpathstr, %rsi 
+	mov 	$urlpathstrl, %rdx 
+	call 	_write
+	
+	lea 	buf, %rsi 
+	mov 	$LEN, %rdx 
+	call 	_write 
+	call 	_nline 
+	call reset_buffer
+
+	
 	jmp _exit
+
 	
 reset_buffer:
 	movb	$0, count
