@@ -120,6 +120,18 @@ read:
 #############################################
 check_is_number: # Проверим, что аргумент из %r11 - десятичное число, 
 	push %r11
+	
+	mov (%r11), %al
+	cmp $45, %al
+	jne .check_is_number_loop
+	
+	inc %r11 # Если Минус, то пропустим его и проверим, что после минуса идут цифры
+	mov (%r11), %al
+	cmp $0x30, %al
+	jl .not_number	
+	cmp $0x39, %al
+	jg .not_number
+	
 .check_is_number_loop:	
 	mov (%r11), %al
 	
@@ -148,9 +160,17 @@ check_is_number: # Проверим, что аргумент из %r11 - дес�
 #############################################
 string_to_int: # %r11 в число
 	xor %rax, %rax 
-	xor %rcx, %rcx 
+	xor %rcx, %rcx
+	xor %r12, %r12 
 	mov $10, %bx # Будем умножать цифры на 10
 	
+	mov (%r11), %cl
+	cmp $45, %cl
+	jne .string_to_int_loop
+	inc %r12 #  Если число отрицательное то в %r12 будет 1
+	inc %r11
+	
+		
 .string_to_int_loop:	
 	mov (%r11), %cl
 	cmp $0, %cl # Если закончился ввод
@@ -166,8 +186,16 @@ string_to_int: # %r11 в число
 	jmp .string_to_int_loop
 	
 .return:
+	cmp $1,%r12
+	jne .positive
+	neg %rax
+	
+	
+	.positive:
 	mov %rax, %r11
 	ret
+	
+	
 #############################################
 #Simple Functoins
 _modul:
@@ -263,6 +291,10 @@ final:
 
 
 error_stack:
+	lea error_st_msg, %rsi
+	mov $lerror_st_msg, %rdx
+	call write
+
 _error:
 	jmp exit
 
