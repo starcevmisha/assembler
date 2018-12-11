@@ -157,9 +157,9 @@ string_to_int: # %r11 в число
 	je .return
 	
 	sub $48, %cl
-	mul %bx
+	mul %rbx
 	
-	add %cx, %ax
+	add %rcx, %rax
 	
 	inc %r11
 	
@@ -176,7 +176,8 @@ _modul:
 	pop %rbx
 	pop %rax
 	xorq	%rdx, %rdx
-	div		%rbx	
+	cqo
+	idiv		%rbx	
 	push %rdx
 	
 	push %rcx
@@ -187,7 +188,8 @@ _div:
 	pop %rbx
 	pop %rax
 	xorq	%rdx, %rdx
-	div		%rbx	
+	cqo
+	idiv		%rbx	
 	push %rax
 	
 	push %rcx
@@ -268,12 +270,24 @@ _error:
 
 
 print: ## Печатаем число с вершины стека
+
 	call reset_buffer
 	mov $buffer, %rdi
 	mov 8(%rsp), %rax
 	xorl		%ecx, 	%ecx
 	xor			%rbx, %rbx 
 	mov			$10, %rbx
+	
+	cmp $0, %rax
+	jge loop
+	
+	#Если число отрицаельное
+	neg %rax
+	push % rax
+	mov $0x2d, %al
+	stosb
+	pop %rax
+	
 
 loop:
 	xorq		%rdx,	%rdx
