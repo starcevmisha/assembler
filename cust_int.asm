@@ -1,17 +1,9 @@
 model tiny
-
-
-
-.code
-ORG 100h
-
-start:
-    has_run 	db 0
-    
+.data
     buffer      db 30 DUP (0)
     intrpt_str 	db "interrupt call", "$"
     func_str   	db "function call", "$"
-    
+    no_args     db "No ARGS", "$"
 
     SLASH    = '/'
     FUNCT    = 'f'
@@ -20,12 +12,21 @@ start:
     INT_CODE = 27h
     FUNC_CODE = 31h
     PARAGRAPH_SIZE = 16
-    old     dd  0
-    hello       db "HELLO ASM!", "$",0
-    jmp real_start
 
+.code
+ORG 100h
+
+start:
+    jmp real_start
+    flag 	    db 0
+    old         dd  0
+    old_vector_hello       db "I Am here! Old Vector: ","$",0
+    new_vector db "  New Vector: ","$",0
+    ASCII       db "0000","$" ; buffer for ASCII string
+    loaded      db "LOADED",13,10, "$",0
+    
 tsr   proc                             ; процедура обработчика прерываний от таймера
-                pushf                            ; создание в стеке структуры для IRET
+        pushf                            ; создание в стеке структуры для IRET
         call    cs:old                   ; вызов старого обработчика прерываний
         push    ds                       ; сохранение модифицируемых регистров
         push    es
@@ -37,12 +38,50 @@ tsr   proc                             ; процедура обработчик
         push    cs
         pop     ds
 
+        mov al, [flag]
+        cmp al, 00
+        jne loaded_yet
+        inc al
+        mov [flag], al
         
-        mov dx, offset ds:hello
+
+        
+
+        mov dx, offset ds:old_vector_hello
         mov ah, 9
         int 21h
 
+        mov ax, word ptr old+2 ; выводим старый вектор
+        call print_ax
+        mov  ah, 02h
+        mov  dl, ":"     
+        int  21h
+        mov ax, word ptr old
+        call print_ax
 
+        mov dx, offset ds:new_vector ; выводим новый вектор
+        mov ah, 9
+        int 21h
+        mov ax, cs
+        call print_ax
+        mov  ah, 02h
+        mov  dl, ":"     
+        int  21h
+        mov ax, offset tsr
+        call print_ax
+        mov  ah, 02h
+        mov  dl, 10     
+        int  21h
+
+
+
+        jmp depop
+
+loaded_yet:
+        mov dx, offset ds:loaded
+        mov ah, 9
+        int 21h
+depop:
         pop     di                       ; восстановление модифицируемых регистров
         pop     dx
         pop     cx
@@ -52,6 +91,28 @@ tsr   proc                             ; процедура обработчик
         pop     ds
         iret   
 tsr   endp                             ; конец процедуры обработчика
+
+print_ax proc
+    mov di,OFFSET ASCII
+    mov cl,4
+P1: rol ax,4
+    mov bl,al
+    and bl,0Fh          ; only low-Nibble
+    add bl,30h          ; convert to ASCII
+    cmp bl,39h          ; above 9?
+    jna short P2
+    add bl,7            ; "A" to "F"
+P2: mov [di],bl         ; store ASCII in buffer
+    inc di              ; increase target address
+    dec cl              ; decrease loop counter
+    jnz P1              ; jump if cl is not equal 0 (zeroflag is not set)
+
+    mov dx,OFFSET ASCII ; DOS 1+ WRITE STRING TO STANDARD OUTPUT
+    mov ah,9            ; DS:DX->'$'-terminated string
+    int 21h             ; maybe redirected under DOS 2+ for output to file
+    ret
+print_ax endp
+
 end_tsr:
 
 real_start:
@@ -62,7 +123,7 @@ real_start:
 
     mov bl, SLASH
 	cmp bl, [buffer]
-    jne exit
+    jne error
 
     mov bl, INTRPT      
 	cmp bl, [buffer+1]
@@ -77,14 +138,13 @@ interrupt:
     mov  dx, offset intrpt_str
     call print_from_dx
 
-
     mov     ax,  352fh               
     int     21h                     
     mov     word ptr old,  bx        ; сохранение смещения обработчика
     mov     word ptr old + 2,  es    ; сохранение сегмента обработчика
     
     mov     ax,  252fh               ; установка адреса нашего обработчика
-    mov     dx,  offset tsr     ; указание смещения нашего обработчика
+    mov     dx,  offset tsr          ; указание смещения нашего обработчика
     int     21h                      ; вызов DOS
 
 
@@ -98,12 +158,13 @@ func:
     call print_from_dx
     
     mov     ax,  352Fh               ; получение адреса старого обработчика
-    int     21h                      ; прерываний от таймера
+    int     21h                      ; 
     mov     word ptr old,  bx        ; сохранение смещения обработчика
     mov     word ptr old + 2,  es    ; сохранение сегмента обработчика
-    
+
+
     mov     ax,  252Fh               ; установка адреса нашего обработчика
-    mov     dx,  offset tsr        ; указание смещения нашего обработчика
+    mov     dx,  offset tsr          ; указание смещения нашего обработчика
     int     21h                      ; вызов DOS
    
     mov     ax,  3100h               ; функция DOS завершения резидентной программы
@@ -112,7 +173,10 @@ func:
     int     21h                      ; вызов DOS
 
     jmp exit
-
+error:
+    mov dx, offset no_args
+    mov ah, 9
+    int 21h
 exit:
     mov   ax, 4C00h
     int   21h
@@ -169,3 +233,7 @@ read_next_arg proc
 read_next_arg endp
 
 end start
+
+print_dreg proc
+
+print_dreg endp
