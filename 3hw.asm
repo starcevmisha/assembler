@@ -3,12 +3,14 @@ model tiny
     buffer      db 30 DUP (0)
     intrpt_str 	db "interrupt call", "$"
     func_str   	db "function call", "$"
-    no_args     db "No ARGS",10,13, "/h - show help", 10,13, "/u - uninstal TSR program",10,13, "/i - install TSR program",10,13, "$"
+    no_args     db "No ARGS",10,13, "/h - show help", 10,13, "/u - uninstall TSR program",10,13, "/i - install TSR program",10,13, "$"
     installed_str   db "Resident Already Installed", 10,13,"$"
+    not_installed_str   db "Resident Not Installed", 10,13,"$"
+    int_error db 10,13,"CANT DELETE!!. Your handler is not last","$"
     SLASH    = '/'
     HELP    = 'h'
     INSTALL_ARG   = 'i'
-    UNINSTAL = 'u'
+    UNINSTALL_ARG = 'u'
 
     INT_CODE = 27h
     FUNC_CODE = 31h
@@ -21,14 +23,21 @@ start:
     jmp real_start
     
     flag 	    db 0
-    old         dd  0
+    old         dd 0
+    new         dd 0
     old_vector_hello       db "I Am here! Old Vector: ","$",0
     new_vector db "  New Vector: ","$",0
     ASCII       db "0000","$" ; buffer for ASCII string
     loaded      db "LOADED",13,10, "$",0
     
-tsr   proc                             ; процедура обработчика прерываний от таймера
-        pushf                            ; создание в стеке структуры для IRET
+tsr   proc
+        cmp ah, 20h
+        je return_new_vector
+        cmp ah, 21h
+        je return_old_vector
+        pushf
+                             ; процедура обработчика прерываний от таймера
+                                    ; создание в стеке структуры для IRET
         call    cs:old                   ; вызов старого обработчика прерываний
         rol     dx,8
         push    ds                       ; сохранение модифицируемых регистров
@@ -63,17 +72,13 @@ tsr   proc                             ; процедура обработчик
         mov dx, offset ds:new_vector ; выводим новый вектор
         mov ah, 9
         int 21h
-        mov ax, cs
+        mov ax, word ptr new+2 ; выводим новый вектор
         call print_ax
         mov  ah, 02h
         mov  dl, ":"     
         int  21h
-        mov ax, offset tsr
+        mov ax, word ptr new
         call print_ax
-        mov  ah, 02h
-        mov  dl, 10     
-        int  21h
-
 
 
         jmp depop
@@ -89,6 +94,24 @@ depop:
         pop     ds
         iret   
 tsr   endp                             ; конец процедуры обработчика
+
+return_new_vector:
+    push    ds
+    push    cs
+    pop     ds
+    mov bx, word ptr new+2
+    mov cx, word ptr new
+    pop ds    
+    iret
+
+return_old_vector:
+    push    ds
+    push    cs
+    pop     ds
+    mov bx, word ptr old+2
+    mov cx, word ptr old
+    pop ds   
+    iret
 
 print_ax proc
     mov di,OFFSET ASCII
@@ -115,8 +138,7 @@ end_tsr:
 
 real_start:
     mov cl, ds:[0080h]  ; CX: number of bytes to write
-    mov di, 81h
-    
+    mov di, 81h   
     call read_next_arg
 
     mov bl, SLASH
@@ -131,7 +153,65 @@ real_start:
 	cmp bl, [buffer+1]
     je install
 
+    mov bl, UNINSTALL_ARG
+	cmp bl, [buffer+1]
+    je uninstall
+
     jmp exit
+help_message_print:
+    mov dx, offset no_args
+    mov ah, 9
+    int 21h
+    jmp exit
+
+uninstall:
+    mov dx, 00FFh
+    xor ax, ax
+    int 2fh
+
+    cmp dx, 0FF00h
+    jne not_installed_print
+
+    mov ah, 20h; просим наш обработчик вернуть адрес своего сегмента
+    int 2fh ; в bx лежит сегмент установленного обработчика
+    push bx ; -то что получили из нашего обработчика
+    
+    mov     ax,  352Fh ; получение адреса текущего обработчика
+    int     21h   ; сегмент будет лежать в bx
+    
+    push es; - то что лежит в таблице прерываний 
+    pop ax
+    pop bx
+    cmp ax, bx
+    jne error
+
+    ;Иначе мы просим старый адрес и назначаем его
+    mov ah, 21h; просим наш обработчик вернуть адрес своего сегмента
+    int 2fh 
+    push cx ; -смещение
+    push bx ; - сегмент
+    
+
+    pop ds ; - сегмент
+    pop dx ; -смещение
+    mov     ax,  252Fh 
+    int 21h
+
+    jmp exit
+
+not_installed_print:
+    mov dx, offset not_installed_str
+    mov ah, 9
+    int 21h
+    jmp exit
+
+error:
+    mov dx, offset int_error
+    mov ah, 9
+    int 21h
+    jmp exit
+
+
 
 install:
   
@@ -150,7 +230,13 @@ install:
     mov     ax,  252Fh               ; установка адреса нашего обработчика
     mov     dx,  offset tsr          ; указание смещения нашего обработчика
     int     21h                      ; вызов DOS
-   
+
+ 
+    mov     ax,  352Fh               ; получение адреса нового обработчика
+    int     21h                      ; 
+    mov     word ptr new,  bx        ; сохранение смещения обработчика
+    mov     word ptr new + 2,  es    ; сохранение сегмента обработчика
+
     mov     ax,  3100h               ; функция DOS завершения резидентной программы
     mov     dx, (end_tsr - start + 10Fh) / 16 + 1 ; определение размера резидентной
                                                 ; части программы в параграфах
@@ -163,10 +249,7 @@ already_installed_print:
     mov ah, 9
     int 21h
     jmp exit
-help_message_print:
-    mov dx, offset no_args
-    mov ah, 9
-    int 21h
+
 exit:
     mov   ax, 4C00h
     int   21h
