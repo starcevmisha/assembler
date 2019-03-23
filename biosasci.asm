@@ -1,6 +1,7 @@
 model tiny
 .data 
     help_msg    	db "This programm prints ASCII table on the screen", 0Dh, 0Ah, "/m - specify, which mode to use (default 2):", 0Dh, 0Ah, "     0, 1 - 16 colors, 40x25 (25 rows with 40 symbols) with gray\without", 0Dh, 0Ah,"     2, 3 - 16 colors, 80x25 with gray\without", 0Dh, 0Ah, "/p - specify, on which page to print (default 0):", 0Dh, 0Ah, "     0-7 for modes 0 and 1.", 0Dh, 0Ah, "     0-3 for modes 2 and 3.", 0Dh, 0Ah, "/? - this help.", 0Dh, 0Ah, "$"
+    error_page_mode_msg db "too big page, mode or their combination is incorect", 0Dh, 0Ah, "$"
     SLASH   = '/'
     HELP    = '?'
     MODE    = 'm'
@@ -53,7 +54,7 @@ page_choose:
     call read_next_arg
     mov bl, [buffer]
     sub bl, 30h
-    mov [mode_num], bl
+    mov [page_num], bl
     jmp args_loop
 
 
@@ -65,9 +66,36 @@ help_message_print:
 exit:
     mov ax,4C00h
     int 21h 
+error_page_mode:
+    mov dx, offset error_page_mode_msg
+    mov ah, 9
+    int 21h
+    jmp exit
 
+check_page_and_mode:
+        cmp mode_num, 3
+        jg error_page_mode
+        cmp mode_num, 1 
+        jle check_small
+
+    check_big:
+        cmp page_num, 3
+        jg error_page_mode
+        ret
+    check_small:
+        cmp page_num, 7
+        jg error_page_mode
+        ret
 
 prog_start:
+    call check_page_and_mode
+;save display
+	mov ah, 0fh   ; AH = number of character columns
+	int 10h  	  ; AL = display mode
+                  ; BH = active page
+	push bx
+    push ax
+
     mov ah, 05h
 	mov al, byte ptr page_num
 	int 10h
@@ -166,6 +194,19 @@ check:
     dec si
     jnz main_loop
     
+    mov ah, 0
+    int 16h
+
+    pop ax
+    mov ah, 0
+    int 10h
+
+    pop bx 
+    mov al, bh
+    mov ah, 05h
+    int 10h
+
+
     mov ax,4C00h
     int 21h 
 
