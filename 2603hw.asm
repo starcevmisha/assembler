@@ -108,8 +108,7 @@ check_page_and_mode:
 prog_start:
     call check_page_and_mode
     
-    mov ah, 7
-    int 10h
+    call clear_screen
 
     call print_page_mode
     mov ah, 0
@@ -125,7 +124,7 @@ prog_start:
     mov ah, 05h
 	mov al, byte ptr page_num
 	int 10h
-    
+
     mov ah, 0
     mov al,byte ptr mode_num ;Первый бит = очистиь экран
     int 10h
@@ -187,7 +186,23 @@ new_line:
     sub dl, 31
     inc di
     ret
+clear_screen:
+    push 0
+    pop es
+    xor ax,ax
+    mov al, es:[044ah]
+    mov bl, es:[0484h]
+    mul bl
+    shl ax, 2
 
+    
+    push 0b800h
+    pop es
+    mov cx, ax
+    mov al, 0
+    mov di, 0
+    rep stosb
+    ret
 print_string:; si - указывет на строку, заканчивающуюся на 0. dl - столбец,dh - строка.
     mov al, [si]
     inc si
