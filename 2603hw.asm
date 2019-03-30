@@ -2,17 +2,21 @@ model tiny
 .data 
     help_msg    	db "This programm prints ASCII table on the screen", 0Dh, 0Ah, "/m - specify, which mode to use (default 2):", 0Dh, 0Ah, "     0, 1 - 16 colors, 40x25 (25 rows with 40 symbols) with gray\without", 0Dh, 0Ah,"     2, 3 - 16 colors, 80x25 with gray\without", 0Dh, 0Ah, "/p - specify, on which page to print (default 0):", 0Dh, 0Ah, "     0-7 for modes 0 and 1.", 0Dh, 0Ah, "     0-3 for modes 2 and 3.", 0Dh, 0Ah, "/? - this help.", 0Dh, 0Ah, "$"
     error_page_mode_msg db "too big page, mode or their combination is incorect", 0Dh, 0Ah, "$"
+    CUR_MODE_STR db "Currnet mode = "
+    CUR_PAGE_STR db "Currnet page = "
     SLASH   = '/'
     HELP    = '?'
     MODE    = 'm'
     PAGE    = 'p'
+    BRIGHT  = 'b'
     mode_num		db 00000010b
     page_num		db 0
+    bright_mode     db 1
+
 
 .code
 org 100h
 start:
-
     buffer      db 30 DUP (0)
     mov cl, ds:[0080h]  ; CX: number of bytes to write
     mov di, 81h
@@ -43,8 +47,15 @@ c2:
 	cmp bl, [buffer+1]
     je page_choose
 
+    mov bl, BRIGHT     
+	cmp bl, [buffer+1]
+    je bright_choose
+
     jmp exit
 
+bright_choose:
+    mov [bright_mode], 0
+    jmp args_loop
 
 mode_choose:
     call read_next_arg
@@ -96,12 +107,14 @@ check_page_and_mode:
 
 prog_start:
     call check_page_and_mode
-;save display
+
+ ;save display
 	mov ah, 0fh   ; AH = number of character columns
 	int 10h  	  ; AL = display mode
                   ; BH = active page
 	push bx
-    push ax
+    push ax ; Сохраняем видео
+
 
     mov ah, 05h
 	mov al, byte ptr page_num
@@ -111,16 +124,20 @@ prog_start:
     mov al,byte ptr mode_num ;Первый бит = очистиь экран
     int 10h
 
-    xor dx, dx
+    mov ax, 1003h
+    mov bl, [bright_mode]
+    int 10h
+
+
+    push 0
+    pop es
+    mov dl, es:[044Ah]
+    sub dl, 31
+    shr dl, 1;dl = (x-31)/2
+    mov dh, (25-16)/2
+
     and al, 01111111b
     cmp al,2
-    jl small_screen
-    mov dl, (80-32)/2
-    jmp big_screen
-small_screen:
-    mov dl, (40-32)/2
-big_screen:
-    mov dh, (25-16)/2
 
     mov si, 256 ; наш счетчик цикла
     mov di, 1   ; счетчик строк
@@ -169,23 +186,30 @@ print_symbol:; dl - столбец,dh - строка. bl - цвет, al - сим
     push dx
     push di
     
-    push 0b800h
-	pop es
+
     mov ah, bl ; помещаем цвет символа
     
     push ax
     xor ax, ax ; в di пишем dh*80*2 + 2*dl
-    mov al, dh ; al = dh
+    mov al, dh ; al = dh   
     push dx
-    mov bx, 160;ax = dh*80*2
-    mul bx
+        push 0
+        pop es
+        xor bx, bx
+        mov bl, es:[044Ah]
+        shl bl, 1
+        
+        mul bx
     pop dx
+    
     mov dh, 0
     shl dl, 1
     add ax, dx
     mov di, ax   
     pop ax
     
+    push 0b800h
+	pop es  
     mov es:[di],ax
     
     pop di
