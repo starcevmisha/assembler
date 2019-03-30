@@ -2,8 +2,8 @@ model tiny
 .data 
     help_msg    	db "This programm prints ASCII table on the screen", 0Dh, 0Ah, "/m - specify, which mode to use (default 2):", 0Dh, 0Ah, "     0, 1 - 16 colors, 40x25 (25 rows with 40 symbols) with gray\without", 0Dh, 0Ah,"     2, 3 - 16 colors, 80x25 with gray\without", 0Dh, 0Ah, "/p - specify, on which page to print (default 0):", 0Dh, 0Ah, "     0-7 for modes 0 and 1.", 0Dh, 0Ah, "     0-3 for modes 2 and 3.", 0Dh, 0Ah, "/? - this help.", 0Dh, 0Ah, "$"
     error_page_mode_msg db "too big page, mode or their combination is incorect", 0Dh, 0Ah, "$"
-    CUR_MODE_STR db "Currnet mode = "
-    CUR_PAGE_STR db "Currnet page = "
+    CUR_MODE_STR db "Currnet mode=", 0
+    CUR_PAGE_STR db " Currnet page=", 0
     SLASH   = '/'
     HELP    = '?'
     MODE    = 'm'
@@ -107,6 +107,13 @@ check_page_and_mode:
 
 prog_start:
     call check_page_and_mode
+    
+    mov ah, 7
+    int 10h
+
+    call print_page_mode
+    mov ah, 0
+    int 16h
 
  ;save display
 	mov ah, 0fh   ; AH = number of character columns
@@ -115,11 +122,10 @@ prog_start:
 	push bx
     push ax ; Сохраняем видео
 
-
     mov ah, 05h
 	mov al, byte ptr page_num
 	int 10h
-
+    
     mov ah, 0
     mov al,byte ptr mode_num ;Первый бит = очистиь экран
     int 10h
@@ -127,7 +133,8 @@ prog_start:
     mov ax, 1003h
     mov bl, [bright_mode]
     int 10h
-
+    
+    call print_page_mode
 
     push 0
     pop es
@@ -180,6 +187,14 @@ new_line:
     sub dl, 31
     inc di
     ret
+
+print_string:; si - указывет на строку, заканчивающуюся на 0. dl - столбец,dh - строка.
+    mov al, [si]
+    inc si
+    call print_symbol
+    cmp al, 0
+    jne print_string
+    ret
 print_symbol:; dl - столбец,dh - строка. bl - цвет, al - символ
     push ax
     push bx
@@ -202,7 +217,7 @@ print_symbol:; dl - столбец,dh - строка. bl - цвет, al - сим
         mul bx
     pop dx
     
-    mov dh, 0
+    mov dh, 0;+ 2*dl
     shl dl, 1
     add ax, dx
     mov di, ax   
@@ -265,6 +280,35 @@ get_color:;в bl будет лежать цвет
             mov bl, 010011100b
     next3:
         ret
+
+print_page_mode:
+    xor ax, ax
+    push 0
+    pop es
+    mov dl, es:[044Ah]
+    sub dl, 31
+    shr dl, 1;dl = (x-31)/2
+    
+    mov dh, 2
+    mov bl, 010001011b
+    mov si, offset CUR_MODE_STR
+    call print_string
+    
+    push 0
+    pop es
+    mov al, es:[449h]
+    add al, 30h
+    call print_symbol
+    xor ax, ax
+    mov si, offset CUR_PAGE_STR
+    call print_string
+    push 0
+    pop es
+    mov al, es:[462h]
+    add al, 30h
+    call print_symbol
+    ret
+
 
 read_next_arg proc
     ; читает строку из di, пропускает пробелы
