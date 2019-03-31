@@ -198,6 +198,7 @@ clear_screen:
     
     push 0b800h
     pop es
+
     mov cx, ax
     mov al, 0
     mov di, 0
@@ -238,6 +239,20 @@ print_symbol:; dl - столбец,dh - строка. bl - цвет, al - сим
     mov di, ax   
     pop ax
     
+    push 0
+    pop es
+    mov dh, es:[449h] ; mode
+    cmp dh, 7
+    jne norm_mode
+    push 0b000h
+	pop es
+    jmp skip_norm_mode  
+    norm_mode:
+    push 0b800h
+	pop es
+    skip_norm_mode:  
+    mov es:[di],ax
+
     push 0b800h
 	pop es  
     mov es:[di],ax
