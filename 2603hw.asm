@@ -106,8 +106,7 @@ check_page_and_mode:
         ret
 
 prog_start:
-    call check_page_and_mode
-    
+    call check_page_and_mode  
     call clear_screen
 
     call print_page_mode
@@ -121,13 +120,14 @@ prog_start:
 	push bx
     push ax ; Сохраняем видео
 
+    mov ah, 0
+    mov al,byte ptr mode_num ;Первый бит = очистиь экран
+    int 10h
+
     mov ah, 05h
 	mov al, byte ptr page_num
 	int 10h
 
-    mov ah, 0
-    mov al,byte ptr mode_num ;Первый бит = очистиь экран
-    int 10h
 
     mov ax, 1003h
     mov bl, [bright_mode]
@@ -239,24 +239,20 @@ print_symbol:; dl - столбец,dh - строка. bl - цвет, al - сим
     mov di, ax   
     pop ax
     
-    push 0
+    mov dx, es:[44eh]
+    shr dx, 4
+    mov bl, es:[449h]
+    cmp bl, 7
+    jne normal_mode
+    sub dx, 0800h
+    normal_mode:
+    add dx,  0b800h
+	push dx
     pop es
-    mov dh, es:[449h] ; mode
-    cmp dh, 7
-    jne norm_mode
-    push 0b000h
-	pop es
-    jmp skip_norm_mode  
-    norm_mode:
-    push 0b800h
-	pop es
-    skip_norm_mode:  
+
+    mov es, dx
     mov es:[di],ax
 
-    push 0b800h
-	pop es  
-    mov es:[di],ax
-    
     pop di
     pop dx
     pop bx
@@ -338,6 +334,8 @@ print_page_mode:
     add al, 30h
     call print_symbol
     ret
+
+
 
 
 read_next_arg proc
