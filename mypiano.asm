@@ -5,8 +5,9 @@ locals
     old     dd  0                   ; адрес старого обработчика
     buffer  db, 10 dup(0),0
     buffer_len db 10
-    head    db, 0
-    tail    db, 0   
+    tail    db -1; индекс последнего элемента
+    is_exit db 0
+    freqs dw 9121, 7239,7239, 6833, 5423,4831,4063,3619,2280,2031, 1140
 
 .code
 org 100h
@@ -17,48 +18,56 @@ start:
     call install_09int
     xor ax,ax
 loop1:
-    mov al, [buffer]
-    call print_ax
-    mov al, [buffer+1]
-    call print_ax
-    mov al, [buffer+2]
-    call print_ax
-    mov al, [buffer+3]
-    call print_ax
-    mov al, [buffer+4]
-    call print_ax
-    mov al, [buffer+5]
-    call print_ax
-    mov al, [buffer+6]
-    call print_ax
-    mov al, [buffer+7]
-    call print_ax
-    mov al, [buffer+8]
-    call print_ax
-    mov al, [buffer+9]
-    call print_ax
-    mov al, [buffer+10]
-    call print_ax
+    cmp is_exit,0
+    jg exit
+    xor ax, ax 
 
-    mov  ah, 02h
-mov  dl, 10     ;Get the H character
-int  21h
-mov  ah, 02h
-mov  dl, 13     ;Get the H character
-int  21h
-xor ax, ax    
+
+    call print_buffer
+
+    cmp tail, 0; Если ничего не нажато
+    jl sound_off
+
     ; call read_from_buffer
     ; cmp al, 0
     ; jz loop1
-    
-    ; cmp al, 01
-    ; je exit
-    
-    ; call print_ax
+
+    mov     al, 182         ; Prepare the speaker for the
+    out     43h, al         ;  note.
+
+    xor bx, bx
+    mov bl, tail
+    mov al, [buffer+bx]; нажатая клавиша
+    sub al, 01Eh
+    xor bx, bx
+    mov bl, al
+    mov ax, [freqs+bx]; частота
+
+
+    ; mov     ax, 4560        ; Frequency number (in decimal)
+                                ;  for middle C.
+    out     42h, al         ; Output low byte.
+    mov     al, ah          ; Output high byte.
+    out     42h, al 
+    in      al, 61h         ; Turn on note (get value from
+                                ;  port 61h).
+    or      al, 00000011b   ; Set bits 1 and 0.
+    out     61h, al         ; Send new value.
+
 
     jmp loop1
 
+sound_off:
+    in      al, 61h         ; Turn off note (get value from port 61h).
+    and     al, 11111100b   ; Reset bits 1 and 0.
+    out     61h, al         ; Send new value.
+    jmp loop1
+
 exit:
+    in      al, 61h         ; Turn off note (get value from port 61h).
+    and     al, 11111100b   ; Reset bits 1 and 0.
+    out     61h, al         ; Send new value.
+
     call uninstall_09int
     mov ax,4C00h
     int 21h
@@ -66,16 +75,28 @@ exit:
 write_to_buffer proc ;принимаем в al
     push bx
     mov bx, 0
+
+    cmp al, 01h
+    jne @@1
+    mov is_exit,1; Если ESC то потом выйдем
     
+    @@1:
+    cmp al, 01eh ; Только второй ряд с букввми на клавиатуре обрабатываем
+    jl @@ret1
+    cmp al, 028h
+    jg @@ret1
+
     @@loop:
     cmp [buffer+bx], 0
         jne @@next1
         mov [buffer+bx], al
+        inc tail
         jmp @@ret1
     @@next1:
     cmp [buffer+bx], al
         jne @@next2
         call shift_buffer
+        dec tail
         jmp @@loop    ; Убрали из массива это число и на новой итерации мы его запишем в конец
     @@next2:
     inc bx
@@ -116,7 +137,8 @@ remove_from_buffer proc;
     cmp [buffer+bx], al
         jne @@next2
         call shift_buffer
-        jmp @@loop    ; Убрали из массива это число
+        dec tail
+        jmp @@ret1    ; Убрали из массива это число
     @@next2:
     inc bx
     cmp bl, buffer_len
@@ -128,6 +150,42 @@ remove_from_buffer proc;
     
 remove_from_buffer endp
 
+print_buffer proc
+    mov al, tail
+    call print_ax
+    mov al, [buffer]
+    call print_ax
+    mov al, [buffer+1]
+    call print_ax
+    mov al, [buffer+2]
+    call print_ax
+    mov al, [buffer+3]
+    call print_ax
+    mov al, [buffer+4]
+    call print_ax
+    mov al, [buffer+5]
+    call print_ax
+    mov al, [buffer+6]
+    call print_ax
+    mov al, [buffer+7]
+    call print_ax
+    mov al, [buffer+8]
+    call print_ax
+    mov al, [buffer+9]
+    call print_ax
+    mov al, [buffer+10]
+    call print_ax
+
+    mov  ah, 02h
+    mov  dl, 10     ;Get the H character
+    int  21h
+    mov  ah, 02h
+    mov  dl, 13     ;Get the H character
+    int  21h
+
+
+    ret
+print_buffer endp
 
 int09 proc
     push ax
