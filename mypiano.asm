@@ -7,7 +7,7 @@ locals
     buffer_len db 10
     tail    db -1; индекс последнего элемента
     is_exit db 0
-    freqs dw 9121, 7239,7239, 6833, 5423,4831,4063,3619,2280,2031, 1140
+    freqs dw 9121, 8126, 6833, 5423, 4560,3619, 3416,3043,2415,2031,1715
 
 .code
 org 100h
@@ -28,9 +28,6 @@ loop1:
     cmp tail, 0; Если ничего не нажато
     jl sound_off
 
-    ; call read_from_buffer
-    ; cmp al, 0
-    ; jz loop1
 
     mov     al, 182         ; Prepare the speaker for the
     out     43h, al         ;  note.
@@ -41,11 +38,10 @@ loop1:
     sub al, 01Eh
     xor bx, bx
     mov bl, al
+    shl bl,1
     mov ax, [freqs+bx]; частота
 
 
-    ; mov     ax, 4560        ; Frequency number (in decimal)
-                                ;  for middle C.
     out     42h, al         ; Output low byte.
     mov     al, ah          ; Output high byte.
     out     42h, al 
