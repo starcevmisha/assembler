@@ -7,7 +7,12 @@ locals
     buffer_len db 10
     tail    db -1; индекс последнего элемента
     is_exit db 0
-    freqs dw 9121, 8126, 6833, 5423, 4560,3619, 3416,3043,2415,2031,1715
+    octave db 0
+    freqs  dw 9121,8609,8126,7670,7239,6833,6449,6087,5746,5423,5119,4831,4560,4304,4063,3834,3619,3416,3224,3043,2873,2711,2559,2415,2280,2152,2031,1917,1809,1715,1612,1521,1436,1355,1292,1207
+
+    freqs1  dw 9121,8609,8126,7670,7239,6833,6449,6087,5746,5423,5119,4831
+    freqs2 dw 4560,4304,4063,3834,3619,3416,3224,3043,2873,2711,2559
+    freqs3 dw 2559,2415,2280,2152,2031,1917,1809,1715,1612,1521
 
 .code
 org 100h
@@ -28,19 +33,40 @@ loop1:
     cmp tail, 0; Если ничего не нажато
     jl sound_off
 
+    xor bx, bx
+    mov bl, tail 
+    mov al, [buffer+bx]     ; нажатая клавиша
+    sub al, 010h
+    mov bl, octave
+
+    call play_note
+   
+
+
+    jmp loop1
+
+play_note proc; al - клавиша, bl - октава
+    push ax
+    push bx
 
     mov     al, 182         ; Prepare the speaker for the
     out     43h, al         ;  note.
+    
+    pop cx;октава
+    pop ax;клавиша
+    
+    @@mul:
+    cmp cl, 0
+    je @@next1
+    dec cl
+    add al,12
+    jmp @@mul
 
-    xor bx, bx
-    mov bl, tail
-    mov al, [buffer+bx]; нажатая клавиша
-    sub al, 01Eh
+    @@next1:
     xor bx, bx
     mov bl, al
-    shl bl,1
-    mov ax, [freqs+bx]; частота
-
+    shl bl,1                ; так как частота у нас двумя байтами
+    mov ax, [freqs+bx]      ; частота
 
     out     42h, al         ; Output low byte.
     mov     al, ah          ; Output high byte.
@@ -50,9 +76,8 @@ loop1:
     or      al, 00000011b   ; Set bits 1 and 0.
     out     61h, al         ; Send new value.
 
-
-    jmp loop1
-
+    ret
+play_note endp
 sound_off:
     in      al, 61h         ; Turn off note (get value from port 61h).
     and     al, 11111100b   ; Reset bits 1 and 0.
@@ -71,15 +96,30 @@ exit:
 write_to_buffer proc ;принимаем в al
     push bx
     mov bx, 0
-
+    
     cmp al, 01h
-    jne @@1
+    jne @@next_cmp1
     mov is_exit,1; Если ESC то потом выйдем
     
+    @@next_cmp1:
+    cmp al, 02h
+    jne @@next_cmp2
+    mov octave,0
+
+    @@next_cmp2:
+    cmp al, 03h
+    jne @@next_cmp3
+    mov octave,1
+
+    @@next_cmp3:
+    cmp al, 04h
+    jne @@1
+    mov octave,2
+    
     @@1:
-    cmp al, 01eh ; Только второй ряд с букввми на клавиатуре обрабатываем
+    cmp al, 010h ; Только второй ряд с букввми на клавиатуре обрабатываем
     jl @@ret1
-    cmp al, 028h
+    cmp al, 01bh
     jg @@ret1
 
     @@loop:
@@ -121,7 +161,6 @@ shift_buffer proc; Номер начиная с которого мы сещае
     pop bx
     ret 
 shift_buffer endp
-
 
 remove_from_buffer proc;
     push bx
@@ -171,12 +210,11 @@ print_buffer proc
     call print_ax
     mov al, [buffer+10]
     call print_ax
+    mov al, octave
+    call print_ax
 
     mov  ah, 02h
-    mov  dl, 10     ;Get the H character
-    int  21h
-    mov  ah, 02h
-    mov  dl, 13     ;Get the H character
+    mov  dl, 13 
     int  21h
 
 
@@ -254,5 +292,11 @@ uninstall_09int proc
 	pop ds
 	ret
 uninstall_09int endp
+
+
+
+
+play proc
+play endp 
 
 end start   
