@@ -3,7 +3,7 @@ model tiny
     buffer      db 30 DUP (0)
     intrpt_str 	db "interrupt call", "$"
     func_str   	db "function call", "$"
-    hello       db 'Hello, ASM!',10,13, '$'
+    
 
     SLASH    = '/'
     FUNCT    = 'f'
@@ -20,6 +20,7 @@ start:
     jmp real_start
 
 resident_start:
+    hello       db 'Hello, ASM!',10,13, '$'
     mov  ah, hello   
     int  21h
     ret

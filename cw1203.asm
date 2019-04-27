@@ -225,28 +225,26 @@ error:
 
 
 install:
-  
-    mov     ax,  352Fh               ; получение адреса старого обработчика
-    int     21h                      ; 
-    mov     word ptr old,  bx        ; сохранение смещения обработчика
-    mov     word ptr old + 2,  es    ; сохранение сегмента обработчика
-
-    mov dx, 00FFh
-    xor ax, ax
-    int 2fh
-
-    cmp dx, 0FF00h
-    je already_installed_print ; проверяем, что обработчик еще не стоит
-
-    mov     ax,  252Fh               ; установка адреса нашего обработчика
-    mov     dx,  offset tsr          ; указание смещения нашего обработчика
-    int     21h                      ; вызов DOS
+    push 0
+    pop es
+    
+    ; получение адреса старого обработчика
+    cli
+    mov ax, word ptr es:[2fh*4]
+    mov word ptr old, ax
+    mov ax, word ptr es:[2fh*4+2]
+    mov word ptr old+2, ax 
+    sti
+    
+    ; установка адреса нашего обработчика  
+    cli
+    mov word ptr es:[2fh*4], offset tsr
+    mov word ptr es:[2fh*4+2], cs
+    sti
 
  
-    mov     ax,  352Fh               ; получение адреса нового обработчика
-    int     21h                      ; 
-    mov     word ptr new,  bx        ; сохранение смещения обработчика
-    mov     word ptr new + 2,  es    ; сохранение сегмента обработчика
+    mov     word ptr new,  offset tsr; сохранение смещения обработчика
+    mov     word ptr new + 2,  cs    ; сохранение сегмента обработчика
 
     mov     ax,  3100h               ; функция DOS завершения резидентной программы
     mov     dx, (end_tsr - start + 10Fh) / 16 + 1 ; определение размера резидентной

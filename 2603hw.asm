@@ -12,6 +12,7 @@ model tiny
     mode_num		db 00000010b
     page_num		db 0
     bright_mode     db 1
+    screen          db 01000h dup(0)
 
 
 .code
@@ -106,10 +107,12 @@ check_page_and_mode:
         ret
 
 prog_start:
-    call check_page_and_mode  
+    call check_page_and_mode
+      
     call clear_screen
 
     call print_page_mode
+    call save_screen
     mov ah, 0
     int 16h
 
@@ -177,6 +180,8 @@ check:
     mov al, bh
     mov ah, 05h
     int 10h
+
+    call restore_screen
 
     mov ax,4C00h
     int 21h
@@ -246,7 +251,7 @@ print_symbol:; dl - столбец,dh - строка. bl - цвет, al - сим
     jne normal_mode
     sub dx, 0800h
     normal_mode:
-    add dx,  0b800h
+    add dx,  0b800h 
 	push dx
     pop es
 
@@ -335,7 +340,45 @@ print_page_mode:
     call print_symbol
     ret
 
+save_screen proc
+    push cx
+    push ds
+    mov cx, 1000h
+    
+    push offset screen
+    pop es
+    
+    push 0b800h
+    pop ds
+    
+    xor si, si
+    xor di, di
+    rep movsb
 
+    pop ds
+    pop cx
+    ret
+save_screen endp
+
+restore_screen proc
+    push cx
+    push ds
+    mov cx, 1000h
+    
+    push offset screen
+    pop ds
+    
+    push 0b800h
+    pop es
+    
+    xor si, si
+    xor di, di
+    rep movsb
+    
+    pop ds
+    pop cx
+    ret
+restore_screen endp
 
 
 read_next_arg proc

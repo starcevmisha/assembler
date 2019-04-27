@@ -10,10 +10,8 @@ locals
     octave db 0
     freqs  dw 9121,8609,8126,7670,7239,6833,6449,6087,5746,5423,5119,4831,4560,4304,4063,3834,3619,3416,3224,3043,2873,2711,2559,2415,2280,2152,2031,1917,1809,1715,1612,1521,1436,1355,1292,1207
 
-    freqs1  dw 9121,8609,8126,7670,7239,6833,6449,6087,5746,5423,5119,4831
-    freqs2 dw 4560,4304,4063,3834,3619,3416,3224,3043,2873,2711,2559
-    freqs3 dw 2559,2415,2280,2152,2031,1917,1809,1715,1612,1521
-
+    song db 0,1, 1,1, 2,1, 3,1, 4,1, 5,1, 6,1, 7,3, 8,2, 10,1, 9,1
+    is_music db 0
 .code
 org 100h
 
@@ -25,6 +23,13 @@ start:
 loop1:
     cmp is_exit,0
     jg exit
+
+    cmp is_music, 1
+    jne @@next12
+    call play_music
+    
+    
+    @@next12:
     xor ax, ax 
 
 
@@ -38,7 +43,6 @@ loop1:
     mov al, [buffer+bx]     ; нажатая клавиша
     sub al, 010h
     mov bl, octave
-
     call play_note
    
 
@@ -46,6 +50,7 @@ loop1:
     jmp loop1
 
 play_note proc; al - клавиша, bl - октава
+    push cx
     push ax
     push bx
 
@@ -75,7 +80,7 @@ play_note proc; al - клавиша, bl - октава
                                 ;  port 61h).
     or      al, 00000011b   ; Set bits 1 and 0.
     out     61h, al         ; Send new value.
-
+    pop cx
     ret
 play_note endp
 sound_off:
@@ -98,8 +103,13 @@ write_to_buffer proc ;принимаем в al
     mov bx, 0
     
     cmp al, 01h
-    jne @@next_cmp1
+    jne @@next_cmp0
     mov is_exit,1; Если ESC то потом выйдем
+    
+    @@next_cmp0:
+    cmp al, 32h
+    jne @@next_cmp1
+    mov is_music,1; поиграем музыку
     
     @@next_cmp1:
     cmp al, 02h
@@ -293,10 +303,36 @@ uninstall_09int proc
 	ret
 uninstall_09int endp
 
+play_music proc
+    mov cx, 0
+    
+    xor ax, ax
+    xor bx, bx
+    
+    @@loop:
+        mov bx, cx
+        shl bx,1
+        mov al, [song+bx]
+        inc bx
+        mov bl, [song+bx]
+        call play_note
 
+        mov     ax, 2          ; Pause for duration of note.
+    .pause1:
+        mov     bx, 65535
+    .pause2:
+        dec     bx
+        jne     .pause2
+        dec     ax
+        jne     .pause1
 
+        inc cx
+        cmp cx,10
+    jne @@loop
 
-play proc
-play endp 
+    mov is_music,0
+
+    ret
+play_music endp 
 
 end start   
