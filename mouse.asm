@@ -20,6 +20,9 @@ old     dd  0                   ; адрес старого обработчик
     is_exit db 0
     is_repaint db 1
 
+    old_mouse_x dw 300
+    old_mouse_y dw 300
+
 .code
 org 100h
 start:
@@ -32,6 +35,8 @@ start:
     int         33h
     mov         ax,1         ; показать курсор мыши
     int         33h
+
+    
     
     mov         ax, 000Ch   ; установить обработчик событий мыши
     mov         cx, 001001b ; событие - левая кнопка
@@ -266,17 +271,24 @@ draw_circle endp
 
 check_coordinates proc;cx - mouse x; dx - mouse y
     push ax
+    
     mov ax, circle_x
     push ax
     mov ax, circle_y
     push ax
 
 
+
     mov ax, starty
     cmp circle_y, ax
     jne @@next1
+        mov ax, circle_x
+        sub ax, old_mouse_x
+        add ax, cx
+        mov new_circle_x, ax
+        
         ;если на врехней палке
-        mov new_circle_x, cx
+        ; mov new_circle_x, cx
         mov ax, startx
         cmp new_circle_x, ax
         jg @@next01
@@ -292,12 +304,17 @@ check_coordinates proc;cx - mouse x; dx - mouse y
     mov ax, new_circle_x
     mov circle_x, ax 
 
+    
 
     mov ax, startx
     cmp circle_x, ax
     jne @@next2
+        mov ax, circle_y
+        sub ax, old_mouse_y
+        add ax, dx
+        mov new_circle_y, ax
+
         ;левая палка
-        mov new_circle_y, dx
         mov ax, starty
         cmp new_circle_y, ax
         jg @@next11
@@ -319,7 +336,11 @@ check_coordinates proc;cx - mouse x; dx - mouse y
     cmp circle_y, ax
     jne @@next3
         ;если на нижней палке
-        mov new_circle_x, cx
+        mov ax, circle_x
+        sub ax, old_mouse_x
+        add ax, cx
+        mov new_circle_x, ax
+        
         mov ax, startx
         cmp new_circle_x, ax
         jg @@next21
@@ -339,7 +360,11 @@ check_coordinates proc;cx - mouse x; dx - mouse y
     cmp circle_x, ax
     jne @@next4
         ;левая палка
-        mov new_circle_y, dx
+        mov ax, circle_y
+        sub ax, old_mouse_y
+        add ax, dx
+        mov new_circle_y, ax
+
         mov ax, starty
         cmp new_circle_y, ax
         jg @@next31
@@ -350,8 +375,6 @@ check_coordinates proc;cx - mouse x; dx - mouse y
         jl @@next4
         mov new_circle_y, ax 
     
-    mov ax, new_circle_y
-    mov circle_y, ax 
     
     @@next4:
 
@@ -359,6 +382,9 @@ check_coordinates proc;cx - mouse x; dx - mouse y
     mov circle_y, ax
     pop ax
     mov circle_x, ax
+    
+    mov old_mouse_x, cx
+    mov old_mouse_y, dx
 
     pop ax
     ret
