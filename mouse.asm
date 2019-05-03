@@ -1,6 +1,6 @@
 model tiny
 locals
-.286 
+
 .data
     bold    dw 3
     width   dw 301
@@ -8,7 +8,11 @@ locals
     startx  dw 100
     starty  dw 100
     color   db 10
-    circle_radius   db 10
+    
+    circle_x dw 100
+    circle_y dw 100
+    circle_rad   db 10
+
 .code
 org 100h
 start:
@@ -21,30 +25,40 @@ start:
     mov al, 10
     call draw_rectangle
 
+    mov al ,6
+    call draw_circle
 
-    mov     AH,0ch  ;функция ch - изображение точки
-    mov     BH,0    ;выбор страницы 0
-    mov cx, 100
-    mov dx, 100
-    mov al , 6
-    int     10h     ;обращение к видео-BIOS
+    ; mov     AH,0ch  ;функция ch - изображение точки
+    ; mov     BH,0    ;выбор страницы 0
+    ; mov cx, 100
+    ; mov dx, 100
+    ; mov al , 6
+    ; int     10h     ;обращение к видео-BIOS
 
-    mov cx, 100
-    mov dx, 200
-    mov al , 6
-    int     10h     ;обращение к видео-BIOS
-
-    
-    mov cx, 400
-    mov dx, 200
-    mov al , 6
-    int     10h     ;обращение к видео-BIOS   
-     mov cx, 400
-    mov dx, 100
-    mov al , 6
-    int     10h     ;обращение к видео-BIOS   
+    ; mov cx, 100
+    ; mov dx, 200
+    ; mov al , 6
+    ; int     10h     ;обращение к видео-BIOS
 
     
+    ; mov cx, 400
+    ; mov dx, 200
+    ; mov al , 6
+    ; int     10h     ;обращение к видео-BIOS   
+    ;  mov cx, 400
+    ; mov dx, 100
+    ; mov al , 6
+    ; int     10h     ;обращение к видео-BIOS   
+    
+    ;  mov cx, 150
+    ; mov dx, 150
+    ; mov al , 15
+    ; int     10h     ;обращение к видео-BIOS   
+
+
+
+
+
     mov ax,4C00h
     int 21h
 
@@ -153,6 +167,45 @@ draw_rectangle proc; cx-x, dx-y, al-цвет
 draw_rectangle endp
 
 draw_circle proc
+    mov al, color
+    xor al, 3
+    mov color, al
+    xor ax, ax  
+    
+    mov al, circle_rad
+    shl ax, 1
+    
+
+    
+    mov cx, circle_x
+    sub cl, circle_rad
+    
+    mov dx, circle_y
+    sub dl, circle_rad
+
+    mov si, bold
+    shr si,1
+    add cx, si
+    add dx, si
+
+
+        mov si, ax
+
+
+
+    @@loop:
+    call draw_horizontal_line
+    dec ax
+    inc dx
+
+    cmp ax, 0
+    jne @@loop
+
+    mov al, color
+    xor al, 3
+    mov color, al
+
+    ret
 draw_circle endp
 
 
