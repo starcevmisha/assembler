@@ -34,7 +34,7 @@ start:
     int         33h
     
     mov         ax, 000Ch   ; установить обработчик событий мыши
-    mov         cx, 001000b ; событие - левая кнопка
+    mov         cx, 001001b ; событие - левая кнопка
     mov         dx, offset mouse_handler
     int         33h
     
@@ -46,17 +46,19 @@ start:
     jmp exit
 
 mouse_handler proc
-    ; test ax, 00001b ; перемещение
-    ; je move
+    cmp ax, 00001b ; перемещение
+    je move
 
     cmp ax, 01000b ;правая кнопка мыши
     je rmb
     jmp ret1
-    ; move:
-    ;     jmp ret1
-    ;     ; mov new_circle_x, cx
-    ;     ; mov new_circle_y, dx
-    ;     ; call repaint
+    
+    move:
+        call check_coordinates
+        ; mov new_circle_x, cx
+        ; mov new_circle_y, dx
+        call repaint
+        jmp ret1
 
     lmb_move:
     rmb:  
@@ -76,67 +78,49 @@ repaint:
     mov         ax,2        ; спрятать
     int         33h
 
-
+    mov al, color
+    push ax
+    mov color, 0
     
     mov cx, startx
     mov dx, starty
     call draw_rectangle
 
-    mov cx, startx
-    mov dx, starty
+
+    mov cx, circle_x
+    mov dx, circle_y
     call draw_circle
 
-    ; mov color, 15
-    
-    ; mov cx, startx
-    ; mov dx, starty
-    ; call draw_rectangle
-    ; mov cx, startx
-    ; mov dx, starty
-    ; call draw_circle
+    pop ax
+    mov color, al
 
-    ; pop ax
-    ; mov color, al
-    
-    ; mov cx, startx
-    ; mov dx, starty
-    ; call draw_rectangle
-    
-    ; mov cx, new_circle_x
-    ; mov dx, new_circle_y
-    ; mov al, color
-    ; xor al, 3
-    ; mov color, al
-    ; call draw_circle
+    mov cx, startx
+    mov dx, starty
+    call draw_rectangle
 
-    ; mov bx, new_circle_x
-    ; mov circle_x, bx
-    ; mov bx, new_circle_y
-    ; mov circle_y, bx
+    mov al, color
+    xor al, 3
+    mov color, al ; поменяем цвет для круга
+    
+    mov cx,new_circle_x
+    mov dx, new_circle_y
+    call draw_circle
+    
+    mov al, color
+    xor al, 3
+    mov color, al
+
+
+
+    mov bx, new_circle_x; положим новвые координаты
+    mov circle_x, bx
+    mov bx, new_circle_y
+    mov circle_y, bx
 
     mov         ax,1         ; показать курсор мыши
     int         33h
     
     ret
-; repaint_rectangle:
-;     mov cx, startx
-;     mov dx, starty
-;     call draw_rectangle
-;     ret
-
-; repaint_circle:
-
-
-;     mov cx, new_circle_x
-;     mov dx, new_circle_y
-;     call draw_circle
-
-;     mov bx, new_circle_x
-;     mov circle_x, bx
-;     mov bx, new_circle_y
-;     mov circle_y, bx
-
-;     ret
 
 exit:
     mov         ax,000Ch
@@ -251,33 +235,22 @@ draw_rectangle proc; cx-x, dx-y, al-цвет
     ret
 draw_rectangle endp
 
-draw_circle proc
-    mov al, color
-    xor al, 3
-    mov color, al
-    
+draw_circle proc ;  cx-xЦЕЕНТР, dx-yЦЕНТР
     xor ax, ax  
-    
     mov al, circle_rad
-    shl ax, 1
     
+    sub cx, ax; Получаю координаты левого верхнего угла
+    sub dx, ax; Получаю координаты левого верхнего угла
+    
+    shl ax, 1; получаю диаметр
 
-    
-    mov cx, circle_x
-    sub cl, circle_rad
-    
-    mov dx, circle_y
-    sub dl, circle_rad
 
     mov si, bold
     shr si,1
     add cx, si
     add dx, si
 
-
-        mov si, ax
-
-
+    mov si, ax; кладу диаметр
 
     @@loop:
     call draw_horizontal_line
@@ -287,12 +260,108 @@ draw_circle proc
     cmp ax, 0
     jne @@loop
 
-    mov al, color
-    xor al, 3
-    mov color, al
 
     ret
 draw_circle endp
 
+check_coordinates proc;cx - mouse x; dx - mouse y
+    push ax
+    mov ax, circle_x
+    push ax
+    mov ax, circle_y
+    push ax
+
+
+    mov ax, starty
+    cmp circle_y, ax
+    jne @@next1
+        ;если на врехней палке
+        mov new_circle_x, cx
+        mov ax, startx
+        cmp new_circle_x, ax
+        jg @@next01
+        mov new_circle_x, ax; если меньше чем нужно
+        @@next01:
+        add ax, width
+        cmp new_circle_x, ax
+        jl @@next1
+        mov new_circle_x, ax; если больше чем нужно        
+    
+    
+    @@next1:
+    mov ax, new_circle_x
+    mov circle_x, ax 
+
+
+    mov ax, startx
+    cmp circle_x, ax
+    jne @@next2
+        ;левая палка
+        mov new_circle_y, dx
+        mov ax, starty
+        cmp new_circle_y, ax
+        jg @@next11
+        mov new_circle_y, ax
+        @@next11:
+        add ax, height
+        cmp new_circle_y, ax
+        jl @@next2
+        mov new_circle_y, ax   
+    
+
+
+    @@next2:
+    mov ax, new_circle_y
+    mov circle_y, ax 
+
+    mov ax, starty
+    add ax, height
+    cmp circle_y, ax
+    jne @@next3
+        ;если на нижней палке
+        mov new_circle_x, cx
+        mov ax, startx
+        cmp new_circle_x, ax
+        jg @@next21
+        mov new_circle_x, ax; если меньше чем нужно
+        @@next21:
+        add ax, width
+        cmp new_circle_x, ax
+        jl @@next3
+        mov new_circle_x, ax; если больше чем нужно  
+
+    @@next3:
+    mov ax, new_circle_x
+    mov circle_x, ax 
+    
+    mov ax, startx
+    add ax, width
+    cmp circle_x, ax
+    jne @@next4
+        ;левая палка
+        mov new_circle_y, dx
+        mov ax, starty
+        cmp new_circle_y, ax
+        jg @@next31
+        mov new_circle_y, ax
+        @@next31:
+        add ax, height
+        cmp new_circle_y, ax
+        jl @@next4
+        mov new_circle_y, ax 
+    
+    mov ax, new_circle_y
+    mov circle_y, ax 
+    
+    @@next4:
+
+    pop ax
+    mov circle_y, ax
+    pop ax
+    mov circle_x, ax
+
+    pop ax
+    ret
+check_coordinates endp
 
 end start
