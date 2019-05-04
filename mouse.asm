@@ -2,7 +2,7 @@ model tiny
 locals
 
 .data
-old     dd  0                   ; адрес старого обработчика
+    old     dd  0                   ; адрес старого обработчика
     bold    dw 3
     width   dw 301
     height  dw 101
@@ -20,14 +20,14 @@ old     dd  0                   ; адрес старого обработчик
     is_exit db 0
     is_repaint db 1
 
-    old_mouse_x dw 300
-    old_mouse_y dw 300
+    old_mouse_x dw 0
+    old_mouse_y dw 0
 
 .code
 org 100h
 start:
     mov     AH,0    ;функция 0 - установка режима
-    mov     AL,10h  ;выбор режима 10h
+    mov     AL,12h  ;выбор режима 10h
     int     10h     ;обращение к видео-BIOS
 
 
@@ -52,6 +52,14 @@ start:
     jmp exit
 
 mouse_handler proc
+    cmp old_mouse_x, 0
+    jne @@next1
+    mov old_mouse_x, cx
+    @@next1:
+    cmp old_mouse_x, 0
+    jne @@next2
+    mov old_mouse_x, dx
+    @@next2:
     cmp ax, 00001b ; перемещение
     je move
 
@@ -60,11 +68,14 @@ mouse_handler proc
     jmp ret1
     
     move:
+        test bx, 001b ; Нажата левая кнопка
+        jnz lmb_move
+
         call move_circle_if_need
         call repaint
         jmp ret1
     lmb_move:
-        ; call update_coordinates
+        call update_coordinates
         jmp ret1
     rmb:  
         push ax
@@ -78,55 +89,6 @@ mouse_handler proc
         retf
 mouse_handler endp
 
-repaint_circle:
-    ; mov al, color
-    ; push ax
-    ; mov color, 0
-    
-    ; mov cx, circle_x
-    ; mov dx, circle_y
-    ; call draw_circle;;
-
-    ; pop ax
-    ; mov color, al
-    ; ;;убрали кргу
-
-    ; xor ax, ax
-    ; mov cx, circle_x
-    
-    ; mov dx, circle_y
-    ; sub dx, circle_rad; в dx координаты левой стенки
-    
-
-
-    ; mov si, circle_rad ;;диаметр 
-    ; shl si,1
-    
-    ; mov ax, bold  
-    ; shr ax
-    ; sub cx, ax; координаты левой точки пересечения линии и круга
-
-    ; mov ax, bold  
-    ; @@loop1:
-    ; call draw_horizontal_line
-    ; inc dx
-    ; dec ax
-    ; cmp ax, 0
-    ; jne @@loop1
-    ; sub dx, bold
-
-    ; mov al, color;;рисуем круг заново
-    ; xor al, 3
-    ; mov color, al 
-    
-    ; mov cx,new_circle_x
-    ; mov dx, new_circle_y
-    ; call draw_circle
-    
-    ; mov al, color
-    ; xor al, 3
-    ; mov color, al
-    ret
 repaint:
     mov         ax,2        ; спрятать
     int         33h
@@ -150,8 +112,8 @@ repaint:
     pop ax
     mov color, al
 
-    mov cx, startx
-    mov dx, starty
+    mov cx, newx
+    mov dx, newy
     call draw_rectangle
 
     mov al, color
@@ -172,6 +134,12 @@ repaint:
     mov circle_x, bx
     mov bx, new_circle_y
     mov circle_y, bx
+
+    mov bx, newx ; положим новвые координаты
+    mov startx, bx
+    mov bx, newy
+    mov starty, bx
+    
 
     mov         ax,1         ; показать курсор мыши
     int         33h
@@ -197,7 +165,8 @@ draw_horizontal_line proc; cx - x, dx  -y, si - длина, al-цвет
     mov al, color
     mov bh,0    ;выбор страницы 0
     @@loop:   
-        int     10h     ;обращение к видео-BIOS   
+        int     10h     ;обращение к видео-BIOS  
+        ; call PlotPixel 
         inc cx
         dec si
 
@@ -434,8 +403,6 @@ move_circle_if_need proc;cx - mouse x; dx - mouse y
     mov ax, circle_y
     push ax
 
-
-
     mov ax, starty
     cmp circle_y, ax
     jne @@next1
@@ -546,5 +513,70 @@ move_circle_if_need proc;cx - mouse x; dx - mouse y
     pop ax
     ret
 move_circle_if_need endp
+
+update_coordinates:
+
+    mov ax, startx;;смещаем прямоугольник
+    sub ax, old_mouse_x
+    add ax, cx
+    mov newx, ax
+    
+    mov ax, starty
+    sub ax, old_mouse_y
+    add ax, dx
+    mov newy, ax
+
+    mov ax, circle_x; смещаем круг
+    sub ax, old_mouse_x
+    add ax, cx
+    mov new_circle_x, ax
+    
+    mov ax, circle_y
+    sub ax, old_mouse_y
+    add ax, dx
+    mov new_circle_y, ax
+
+
+
+    mov old_mouse_x, cx
+    mov old_mouse_y, dx
+    call repaint
+
+ret
+
+; Plots a pixel by writing a BYTE-sized color value directly to memory,
+; based on the formula:    0A000h + (Y * 320) + X
+; 
+; Parameters: СX == x-coordinate
+;             DX == y-coordinate
+;             AL == color
+; Clobbers:   CX
+; Returns:    <none>
+PlotPixel:
+   push di
+
+    push 0
+    pop es
+    mov di, es:[044Ah]
+
+    push        0A400h
+        pop         es           ; ES - начало видеопамяти
+
+
+   mov  di, dx
+   add di, dx
+   add di, dx
+   add di, dx
+   add di, dx
+   
+   shl  di, 8             ; Y *= 320
+
+   add  di, cx            ; Y += X
+
+   mov es:[di], 15  ; write the color byte to memory at (X, Y)
+
+   pop  di
+   ret
+
 
 end start
