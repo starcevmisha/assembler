@@ -3,7 +3,7 @@ locals
 
 .data
     old     dd  0                   ; адрес старого обработчика
-    bold    dw 3
+    bold    dw 5
     width   dw 301
     height  dw 101
     startx  dw 100
@@ -16,7 +16,7 @@ locals
     circle_y dw 100
     new_circle_x dw 100
     new_circle_y dw 100
-    circle_rad   db 10
+    circle_rad   dw 10
     is_exit db 0
     is_repaint db 1
 
@@ -52,6 +52,8 @@ start:
     jmp exit
 
 mouse_handler proc
+    push cx
+    push dx
     cmp old_mouse_x, 0
     jne @@next1
     mov old_mouse_x, cx
@@ -75,7 +77,10 @@ mouse_handler proc
         call repaint
         jmp ret1
     lmb_move:
+        call check_coordinates
+        jz @@dont_update
         call update_coordinates
+        @@dont_update:
         jmp ret1
     rmb:  
         push ax
@@ -86,9 +91,107 @@ mouse_handler proc
         pop ax
         call repaint
     ret1:
+        pop dx
+        pop cx
+
+        mov old_mouse_x, cx
+        mov old_mouse_y, dx
         retf
 mouse_handler endp
+update_coordinates:
 
+    mov ax, startx;;смещаем прямоугольник
+    sub ax, old_mouse_x
+    add ax, cx
+    mov newx, ax
+    
+    mov ax, circle_x; смещаем круг
+    sub ax, old_mouse_x
+    add ax, cx
+    mov new_circle_x, ax
+
+    @@next0:
+    mov ax, newx
+    mov bx, new_circle_x
+    sub bx, circle_rad
+
+    cmp ax, bx ; в ax левый край
+    jl @@circ_left
+        mov ax, bx
+    @@circ_left:
+        cmp ax, 0
+        jge @@next1
+        sub newx, ax
+        sub new_circle_x, ax
+    
+    
+    @@next1:
+    mov ax, newx
+    add ax, width
+
+    mov bx, new_circle_x
+    add bx, circle_rad
+
+    cmp ax, bx ; в ax правый край
+    jg @@circ_right
+        mov ax, bx
+    @@circ_right:
+        cmp ax, 640
+        jl @@next2
+        sub newx, ax
+        add newx, 640
+        sub new_circle_x, ax
+        add new_circle_x, 640
+    
+    @@next2:
+    
+    mov ax, starty
+    sub ax, old_mouse_y
+    add ax, dx
+    mov newy, ax
+
+    mov ax, circle_y
+    sub ax, old_mouse_y
+    add ax, dx
+    mov new_circle_y, ax
+
+    
+    mov ax, newy
+    mov bx, new_circle_y
+    sub bx, circle_rad
+
+    cmp ax, bx ; в ax верхний край
+    jl @@circ_up
+        mov ax, bx
+    @@circ_up:
+        cmp ax, 0
+        jge @@next3
+        sub newy, ax
+        sub new_circle_y, ax
+    @@next3:
+
+    mov ax, newy
+    add ax, height
+    mov bx, new_circle_y
+    add bx, circle_rad
+
+    cmp ax, bx ; в ax нижний край
+    jg @@circ_down
+        mov ax, bx
+    @@circ_down:
+        cmp ax, 480
+        jl @@next4
+        sub newy, ax
+        add newy, 480
+        sub new_circle_y, ax
+        add new_circle_y, 480
+    
+
+    @@next4:
+
+    call repaint
+
+ret
 repaint:
     mov         ax,2        ; спрятать
     int         33h
@@ -299,8 +402,7 @@ draw_circle proc
     mov circle_x, cx
     mov circle_y, dx
 
-    xor bx, bx
-    mov bl, circle_rad
+    mov bx, circle_rad
     mov [bp-6], 0
     sub [bp-6], bx
     mov [bp-2], bx
@@ -507,151 +609,85 @@ move_circle_if_need proc;cx - mouse x; dx - mouse y
     pop ax
     mov circle_x, ax
     
-    mov old_mouse_x, cx
-    mov old_mouse_y, dx
 
     pop ax
     ret
 move_circle_if_need endp
 
-update_coordinates:
-
-    mov ax, startx;;смещаем прямоугольник
-    sub ax, old_mouse_x
-    add ax, cx
-    mov newx, ax
+check_coordinates proc
+    @@check_circle:
+        mov ax, circle_x
+        sub ax, circle_rad
+        cmp old_mouse_x, ax
+            jl @@check_rect
+        
+        mov ax, circle_x
+        add ax, circle_rad
+        cmp old_mouse_x, ax
+            jg @@check_rect
+        
+        mov ax, circle_y
+        sub ax, circle_rad
+        cmp old_mouse_y, ax
+            jl @@check_rect
+        
+        mov ax, circle_y
+        add ax, circle_rad
+        cmp old_mouse_y, ax
+            jg @@check_rect
+        jmp @@ret_good
     
-    mov ax, circle_x; смещаем круг
-    sub ax, old_mouse_x
-    add ax, cx
-    mov new_circle_x, ax
+    @@check_rect:
+        mov ax, startx
+        cmp old_mouse_x, ax
+            jl @@ret_bad
 
-    @@next0:
-    mov ax, newx
-    xor bx, bx
-    mov bl, circle_rad
-    neg bx
-    add bx, new_circle_x
+        mov ax, startx
+        add ax, width
+        cmp old_mouse_x, ax
+            jg @@ret_bad
+        
+        mov ax, starty
+        cmp old_mouse_y, ax
+            jl @@ret_bad
 
-    cmp ax, bx ; в ax левый край
-    jl @@circ_left
-        mov ax, bx
-    @@circ_left:
-        cmp ax, 0
-        jge @@next1
-        sub newx, ax
-        sub new_circle_x, ax
+        mov ax, starty
+        add ax, height
+        cmp old_mouse_y, ax
+            jg @@ret_bad
     
-    
-    @@next1:
-    mov ax, newx
-    add ax, width
-    xor bx, bx
-    mov bl, circle_rad
-    add bx, new_circle_x
-
-    cmp ax, bx ; в ax правый край
-    jg @@circ_right
-        mov ax, bx
-    @@circ_right:
-        cmp ax, 640
-        jl @@next2
-        sub newx, ax
-        add newx, 640
-        sub new_circle_x, ax
-        add new_circle_x, 640
-    
-    @@next2:
-    
-    mov ax, starty
-    sub ax, old_mouse_y
-    add ax, dx
-    mov newy, ax
-
-    mov ax, circle_y
-    sub ax, old_mouse_y
-    add ax, dx
-    mov new_circle_y, ax
-
-    
-    mov ax, newy
-    xor bx, bx
-    mov bl, circle_rad
-    neg bx
-    add bx, new_circle_y
-
-    cmp ax, bx ; в ax верхний край
-    jl @@circ_up
-        mov ax, bx
-    @@circ_up:
-        cmp ax, 0
-        jge @@next3
-        sub newy, ax
-        sub new_circle_y, ax
-    @@next3:
-
-    mov ax, newy
-    add ax, height
-    xor bx, bx
-    mov bl, circle_rad
-    add bx, new_circle_y
-
-    cmp ax, bx ; в ax нижний край
-    jg @@circ_down
-        mov ax, bx
-    @@circ_down:
-        cmp ax, 480
-        jl @@next4
-        sub newy, ax
-        add newy, 480
-        sub new_circle_y, ax
-        add new_circle_y, 480
-    
-
-    @@next4:
+        
+        mov ax, startx
+        add ax, bold
+        cmp old_mouse_x, ax
+            jl @@ret_good
+        
+        mov ax, starty
+        add ax, bold
+        cmp old_mouse_y, ax
+            jl @@ret_good
+        
+        mov ax, startx
+        add ax, width
+        sub ax, bold
+        cmp old_mouse_x, ax
+            jg @@ret_good
+        
+        mov ax, starty
+        add ax, height
+        sub ax, bold
+        cmp old_mouse_y, ax
+            jg @@ret_good
 
 
+        jmp @@ret_bad
+    @@ret_good:
+        ret
+    @@ret_bad:
+        xor ax, ax
+        ret
+check_coordinates endp
 
-
-    mov old_mouse_x, cx
-    mov old_mouse_y, dx
-    call repaint
-
-ret
-
-; Plots a pixel by writing a BYTE-sized color value directly to memory,
-; based on the formula:    0A000h + (Y * 320) + X
-; 
-; Parameters: СX == x-coordinate
-;             DX == y-coordinate
-;             AL == color
-; Clobbers:   CX
-; Returns:    <none>
-PlotPixel:
-   push di
-
-    push 0
-    pop es
-    mov di, es:[044Ah]
-
-    push        0A400h
-        pop         es           ; ES - начало видеопамяти
-
-
-   mov  di, dx
-   add di, dx
-   add di, dx
-   add di, dx
-   add di, dx
-   
-   shl  di, 8             ; Y *= 320
-
-   add  di, cx            ; Y += X
-
-   mov es:[di], 15  ; write the color byte to memory at (X, Y)
-
-   pop  di
-   ret
 
 
 end start
