@@ -498,6 +498,7 @@ draw_circle proc
 draw_circle endp
 
 move_circle_if_need proc;cx - mouse x; dx - mouse y
+
     push ax
     
     mov ax, circle_x
@@ -515,15 +516,31 @@ move_circle_if_need proc;cx - mouse x; dx - mouse y
         
         ;если на врехней палке
         ; mov new_circle_x, cx
+
+        mov ax, new_circle_x
+        sub ax, circle_rad
+        cmp ax, 0
+        jg @@next00
+            mov ax, circle_rad
+            mov new_circle_x, ax
+        @@next00:
+            mov ax, new_circle_x
+            add ax, circle_rad
+            cmp ax, 640
+            jl @@next000
+                mov ax, 640
+                sub ax, circle_rad
+                mov new_circle_x, ax
+        @@next000:
         mov ax, startx
         cmp new_circle_x, ax
         jg @@next01
-        mov new_circle_x, ax; если меньше чем нужно
+            mov new_circle_x, ax; если меньше чем нужно
         @@next01:
-        add ax, width
-        cmp new_circle_x, ax
-        jl @@next1
-        mov new_circle_x, ax; если больше чем нужно        
+            add ax, width
+            cmp new_circle_x, ax
+            jl @@next1
+            mov new_circle_x, ax; если больше чем нужно        
     
     
     @@next1:
@@ -539,6 +556,22 @@ move_circle_if_need proc;cx - mouse x; dx - mouse y
         sub ax, old_mouse_y
         add ax, dx
         mov new_circle_y, ax
+
+        mov ax, new_circle_y
+        sub ax, circle_rad
+        cmp ax, 0
+        jg @@next10
+            mov ax, circle_rad
+            mov new_circle_y, ax
+        @@next10:
+            mov ax, new_circle_y
+            add ax, circle_rad
+            cmp ax, 480
+            jl @@next100
+                mov ax, 480
+                sub ax, circle_rad
+                mov new_circle_y, ax
+        @@next100:
 
         ;левая палка
         mov ax, starty
@@ -567,6 +600,22 @@ move_circle_if_need proc;cx - mouse x; dx - mouse y
         add ax, cx
         mov new_circle_x, ax
         
+        mov ax, new_circle_x
+        sub ax, circle_rad
+        cmp ax, 0
+        jg @@next20
+            mov ax, circle_rad
+            mov new_circle_x, ax
+        @@next20:
+            mov ax, new_circle_x
+            add ax, circle_rad
+            cmp ax, 640
+            jl @@next200
+                mov ax, 640
+                sub ax, circle_rad
+                mov new_circle_x, ax
+        @@next200:
+
         mov ax, startx
         cmp new_circle_x, ax
         jg @@next21
@@ -590,6 +639,22 @@ move_circle_if_need proc;cx - mouse x; dx - mouse y
         sub ax, old_mouse_y
         add ax, dx
         mov new_circle_y, ax
+
+        mov ax, new_circle_y
+        sub ax, circle_rad
+        cmp ax, 0
+        jg @@next30
+            mov ax, circle_rad
+            mov new_circle_y, ax
+        @@next30:
+            mov ax, new_circle_y
+            add ax, circle_rad
+            cmp ax, 480
+            jl @@next300
+                mov ax, 480
+                sub ax, circle_rad
+                mov new_circle_y, ax
+        @@next300:
 
         mov ax, starty
         cmp new_circle_y, ax
