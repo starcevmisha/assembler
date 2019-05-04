@@ -10,7 +10,7 @@ old     dd  0                   ; адрес старого обработчик
     starty  dw 100
     newx    dw 100
     newy    dw 100
-    color   db 1
+    color   db 11
     
     circle_x dw 100
     circle_y dw 100
@@ -31,6 +31,7 @@ start:
     int     10h     ;обращение к видео-BIOS
 
 
+
     mov         ax,0         ; инициализировать мышь
     int         33h
     mov         ax,1         ; показать курсор мыши
@@ -42,7 +43,7 @@ start:
     mov         cx, 001001b ; событие - левая кнопка
     mov         dx, offset mouse_handler
     int         33h
-    
+
     call repaint
     
     mov         ah,0         ; ожидание нажатия любой клавиши
@@ -59,13 +60,12 @@ mouse_handler proc
     jmp ret1
     
     move:
-        call check_coordinates
-        ; mov new_circle_x, cx
-        ; mov new_circle_y, dx
+        call move_circle_if_need
         call repaint
         jmp ret1
-
     lmb_move:
+        ; call update_coordinates
+        jmp ret1
     rmb:  
         push ax
         mov al, color
@@ -78,18 +78,69 @@ mouse_handler proc
         retf
 mouse_handler endp
 
+repaint_circle:
+    ; mov al, color
+    ; push ax
+    ; mov color, 0
+    
+    ; mov cx, circle_x
+    ; mov dx, circle_y
+    ; call draw_circle;;
 
+    ; pop ax
+    ; mov color, al
+    ; ;;убрали кргу
+
+    ; xor ax, ax
+    ; mov cx, circle_x
+    
+    ; mov dx, circle_y
+    ; sub dx, circle_rad; в dx координаты левой стенки
+    
+
+
+    ; mov si, circle_rad ;;диаметр 
+    ; shl si,1
+    
+    ; mov ax, bold  
+    ; shr ax
+    ; sub cx, ax; координаты левой точки пересечения линии и круга
+
+    ; mov ax, bold  
+    ; @@loop1:
+    ; call draw_horizontal_line
+    ; inc dx
+    ; dec ax
+    ; cmp ax, 0
+    ; jne @@loop1
+    ; sub dx, bold
+
+    ; mov al, color;;рисуем круг заново
+    ; xor al, 3
+    ; mov color, al 
+    
+    ; mov cx,new_circle_x
+    ; mov dx, new_circle_y
+    ; call draw_circle
+    
+    ; mov al, color
+    ; xor al, 3
+    ; mov color, al
+    ret
 repaint:
     mov         ax,2        ; спрятать
     int         33h
 
+
+    
     mov al, color
     push ax
     mov color, 0
-    
+
     mov cx, startx
     mov dx, starty
     call draw_rectangle
+    
 
 
     mov cx, circle_x
@@ -124,7 +175,7 @@ repaint:
 
     mov         ax,1         ; показать курсор мыши
     int         33h
-    
+
     ret
 
 exit:
@@ -240,36 +291,142 @@ draw_rectangle proc; cx-x, dx-y, al-цвет
     ret
 draw_rectangle endp
 
-draw_circle proc ;  cx-xЦЕЕНТР, dx-yЦЕНТР
-    xor ax, ax  
-    mov al, circle_rad
+; draw_circle proc ;  cx-xЦЕЕНТР, dx-yЦЕНТР
+;     xor ax, ax  
+;     mov al, circle_rad
     
-    sub cx, ax; Получаю координаты левого верхнего угла
-    sub dx, ax; Получаю координаты левого верхнего угла
+;     sub cx, ax; Получаю координаты левого верхнего угла
+;     sub dx, ax; Получаю координаты левого верхнего угла
     
-    shl ax, 1; получаю диаметр
+;     shl ax, 1; получаю диаметр
 
 
-    mov si, bold
-    shr si,1
-    add cx, si
-    add dx, si
+;     mov si, bold
+;     shr si,1
+;     add cx, si
+;     add dx, si
 
-    mov si, ax; кладу диаметр
+;     mov si, ax; кладу диаметр
 
-    @@loop:
-    call draw_horizontal_line
-    dec ax
-    inc dx
+;     @@loop:
+;     call draw_horizontal_line
+;     dec ax
+;     inc dx
 
-    cmp ax, 0
-    jne @@loop
+;     cmp ax, 0
+;     jne @@loop
 
 
+;     ret
+; draw_circle endp
+
+draw_circle proc
+    push bp
+    mov bp, sp
+    push ax   ; x_value [bp - 2]
+    push ax   ; y_value [bp - 4]
+    push ax   ; decision[bp - 6]
+
+    mov circle_x, cx
+    mov circle_y, dx
+
+    xor bx, bx
+    mov bl, circle_rad
+    mov [bp-6], 0
+    sub [bp-6], bx
+    mov [bp-2], bx
+    mov [bp-4], 0
+
+    @@loop1:
+    mov al,color ;colour goes in al
+    mov ah,0ch
+
+    mov cx, [bp-2] ;Octonant 1
+    add cx, circle_x ;( x_value + circle_x,  y_value + circle_y)
+    mov dx, [bp-4]
+    add dx, circle_y
+    int 10h
+
+    mov cx, [bp-2] ;Octonant 4
+    neg cx
+    add cx, circle_x ;( -x_value + circle_x,  y_value + circle_y)
+    int 10h
+
+    mov cx, [bp-4] ;Octonant 2
+    add cx, circle_x ;( y_value + circle_x,  x_value + circle_y)
+    mov dx, [bp-2]
+    add dx, circle_y
+    int 10h
+
+    mov cx, [bp-4] ;Octonant 3
+    neg cx
+    add cx, circle_x ;( -y_value + circle_x,  x_value + circle_y)
+    int 10h
+
+    mov cx, [bp-2] ;Octonant 7
+    add cx, circle_x ;( x_value + circle_x,  -y_value + circle_y)
+    mov dx, [bp-4]
+    neg dx
+    add dx, circle_y
+    int 10h
+
+    mov cx, [bp-2] ;Octonant 5
+    neg cx
+    add cx, circle_x ;( -x_value + circle_x,  -y_value + circle_y)
+    int 10h
+
+    mov cx, [bp-4] ;Octonant 8
+    add cx, circle_x ;( y_value + circle_x,  -x_value + circle_y)
+    mov dx, [bp-2]
+    neg dx
+    add dx, circle_y
+    int 10h
+
+    mov cx, [bp-4] ;Octonant 6
+    neg cx
+    add cx, circle_x ;( -y_value + circle_x,  -x_value + circle_y)
+    int 10h
+
+    inc [bp-4]
+
+    condition1:
+    cmp [bp-6],0
+    jg condition2
+    mov cx, [bp-4]
+    mov ax, 2
+    imul cx
+    add cx, 1
+    inc cx
+    add [bp-6], cx
+    mov bx, [bp-4]
+    mov dx, [bp-2]
+    cmp bx, dx
+    jg @@ret1
+    jmp @@loop1
+
+    condition2:
+    dec [bp-2]
+    mov cx, [bp-4]
+    sub cx, [bp-2]
+    mov ax, 2
+    imul cx
+    inc cx
+    add [bp-6], cx
+    mov bx, [bp-4]
+    mov dx, [bp-2]
+    cmp bx, dx
+    jg @@ret1
+    jmp @@loop1
+    
+    @@ret1:
+    pop cx
+    pop cx
+    pop cx
+    pop bp
     ret
 draw_circle endp
 
-check_coordinates proc;cx - mouse x; dx - mouse y
+move_circle_if_need proc;cx - mouse x; dx - mouse y
     push ax
     
     mov ax, circle_x
@@ -388,6 +545,6 @@ check_coordinates proc;cx - mouse x; dx - mouse y
 
     pop ax
     ret
-check_coordinates endp
+move_circle_if_need endp
 
 end start
