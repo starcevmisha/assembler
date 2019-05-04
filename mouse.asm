@@ -562,6 +562,7 @@ update_coordinates:
         add new_circle_x, 640
     
     @@next2:
+    
     mov ax, starty
     sub ax, old_mouse_y
     add ax, dx
@@ -571,6 +572,44 @@ update_coordinates:
     sub ax, old_mouse_y
     add ax, dx
     mov new_circle_y, ax
+
+    
+    mov ax, newy
+    xor bx, bx
+    mov bl, circle_rad
+    neg bx
+    add bx, new_circle_y
+
+    cmp ax, bx ; в ax верхний край
+    jl @@circ_up
+        mov ax, bx
+    @@circ_up:
+        cmp ax, 0
+        jge @@next3
+        sub newy, ax
+        sub new_circle_y, ax
+    @@next3:
+
+    mov ax, newy
+    add ax, height
+    xor bx, bx
+    mov bl, circle_rad
+    add bx, new_circle_y
+
+    cmp ax, bx ; в ax нижний край
+    jg @@circ_down
+        mov ax, bx
+    @@circ_down:
+        cmp ax, 480
+        jl @@next4
+        sub newy, ax
+        add newy, 480
+        sub new_circle_y, ax
+        add new_circle_y, 480
+    
+
+    @@next4:
+
 
 
 
