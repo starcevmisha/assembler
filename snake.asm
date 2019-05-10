@@ -1,14 +1,18 @@
 .model tiny
 locals
 .data
- ASCII   db "0000 ","$"           ; buffer for ASCII string
-    buffer_len  db 10
-    snake_body  db 0,50, 100 dup(0)
+    ASCII   db "0000 ","$"           ; buffer for ASCII string
+    buffer_len  db 200
+    snake_body  db 10,10, 255 dup(0)
     
     init_length db 4
+    next_direction db 3
+
+    directions dw 0100h, 0FF00h, 00FFh, 0001h; down, up, left, right
     
     head        db 0
     tail        db 0
+
 .code
 org 100h
 start:
@@ -18,40 +22,50 @@ start:
     call init_snake; напечать змейку в начале
 
 main:
-    mov dh, 1
-    mov dl, 1
-    xor bx, bx
-    mov ah, 02
-    int 10h
-    xor ax, ax
-    mov al, head
-
-    call print_ax
-
-    mov al, tail
-
-    call print_ax
-
-
     call key_press
     
     call print_head
-    call get_head_coordinates   
-    call inc_head    
-    add cl, 1
-    call set_head_coordinates
-
-    call print_tail
-    call inc_tail
-
+    call update_head_coordinates
+    
+    call remove_tail
+   
+    call hide_cursor
 
     call delay
     jmp main
 
 exit:
+    mov dh, 0
+    mov dl, 0
+    xor bx, bx
+    mov ah, 02
+    int 10h
+
     mov ax,4C00h
     int 21h
 
+update_head_coordinates proc
+    xor bx,bx
+    mov bl, next_direction
+    shl bx, 1
+    mov bx, [directions+bx]
+    call get_head_coordinates   
+    call inc_head    
+    add cl, bl
+    add ch, bh
+    call set_head_coordinates
+    ret
+update_head_coordinates endp
+
+
+hide_cursor proc
+    mov dh, 80
+    mov dl, 25
+    xor bx, bx
+    mov ah, 02
+    int 10h
+    ret
+hide_cursor endp
 
 delay proc
     push cx
@@ -109,8 +123,9 @@ print_tail proc
     ret
 print_tail endp
 
-get_head_coordinates proc;; ch - уоордината x, cl - координата y
+get_head_coordinates proc;; ch - координата x, cl - координата y
     push bx
+    xor bx, bx
     mov bl, head
     shl bl, 1
     mov ch, [snake_body+bx];; ch - уоордината x
@@ -120,8 +135,9 @@ get_head_coordinates proc;; ch - уоордината x, cl - координат
     ret
 get_head_coordinates endp
 
-set_head_coordinates proc;; ch - уоордината x, cl - координата y
+set_head_coordinates proc;; ch - координата x, cl - координата y
     push bx
+    xor bx, bx
     mov bl, head
     shl bl, 1
     mov [snake_body+bx], ch
@@ -130,8 +146,6 @@ set_head_coordinates proc;; ch - уоордината x, cl - координат
     pop bx
     ret
 set_head_coordinates endp
-
-
 
 
 init_snake proc
@@ -155,31 +169,75 @@ key_press proc
 	jz ret1 			;Без нажатия выходим
 	xor ah, ah
 	int 16h
+    
+    ;; ESC
     cmp ah, 01h
     jne @@nxt1
     jmp exit
     @@nxt1:
+
+    ;; down 
+    cmp ah, 50h
+    jne @@nxt2
+    cmp next_direction, 1
+    je @@nxt2
+    mov next_direction, 0
+    jmp ret1
+    @@nxt2:
+
+    ;; up
+    cmp ah, 48h
+    jne @@nxt3
+    cmp next_direction, 0
+    je @@nxt3
+    mov next_direction, 1
+    jmp ret1
+    @@nxt3:
+
+    ;; left
+    cmp ah, 4Bh
+    jne @@nxt4
+    cmp next_direction, 3
+    je @@nxt4
+    mov next_direction, 2
+    jmp ret1
+    @@nxt4:
+
+    ;; right
+    cmp ah, 4Dh
+    jne @@nxt5
+    cmp next_direction, 2
+    je @@nxt5
+    mov next_direction, 3
+    jmp ret1
+    @@nxt5:
+
+
     ret1: 
     ret
 key_press endp
 
 inc_head proc
+    push bx
     inc head
     mov bl, head
     cmp bl, buffer_len
-    jl @@ret1
+    jb @@ret1
     mov head, 0
     @@ret1:
+    pop bx
     ret
 inc_head endp
 
 inc_tail proc
+    push bx
     inc tail
     mov bl, tail
     cmp bl, buffer_len
-    jl @@ret2
+    jb @@ret2
     mov tail, 0
     @@ret2:
+    pop bx
     ret
 inc_tail endp
 
@@ -205,6 +263,12 @@ print_ax proc
     pop ax
     ret
 print_ax endp
+
+remove_tail proc
+    call print_tail
+    call inc_tail
+    ret
+remove_tail endp
 
 end start
 
