@@ -1,46 +1,92 @@
 .model tiny
+.386
 locals
 .data
     ASCII   db "0000 ","$"           ; buffer for ASCII string
-    buffer_len  dw 1000
-
-    
+    buffer_len  = 10
+   
     init_length db 4
     next_direction db 3
-    head        dw 0
-    tail        dw 0
-    snake_body  dw 10,60h, 2000 dup('*')
+
+    snake_body  dw 20*256+20, 2000 dup('*')
     directions dw 0100h, 0FF00h, 00FFh, 0001h; down, up, left, right
 
-    speed db 2
+    wall_type db 0
+    ;; Слева стена - убийца, справа стена - прыгун, снизу телепорт, сверху зависит от типа
+
+
+    head        dw 0
+    tail        dw 0
+    snake_trav  dw 1
+
+    speed dw 7
 
 .code
 org 100h
 start:
-    mov ax,0003h
+    mov ax,0006h
 	int	10h
     
     call init_snake; напечать змейку в начале
+    call draw_walls
 
 main:
+    mov dh, 1
+    mov dl, 1
+    xor bx, bx
+    mov ah, 02
+    int 10h
+    mov ax, head
+    call print_ax
+
+    mov dh, 2
+    mov dl, 1
+    xor bx, bx
+    mov ah, 02
+    int 10h
+    mov ax, tail
+    call print_ax
+
+    ; mov si, [head]
+    ; shl si, 1
+
+
+    ; mov dh, 2
+    ; mov dl, 2
+    ; xor bx, bx
+    ; mov ah, 02
+    ; int 10h
+    ; mov ax, snake_body[si]
+    ; call print_ax
+    ; mov dh, 0
+    ; mov dl, 0
+    ; xor bx, bx
+    ; mov ah, 02
+    ; int 10h
+    ; mov ax, speed
+    ; call print_ax
+    
+    
     call key_press
     
     call print_head
-    call update_head_coordinates
-    
-    call remove_tail
+    call update_head_coordinates    ;; Обновляем координаты с учетом стен
    
+    @@next:
     call hide_cursor
 
     call delay
     jmp main
-
+GAME_OVER:
 exit:
     mov dh, 0
     mov dl, 0
     xor bx, bx
     mov ah, 02
     int 10h
+
+    mov ax,0003h
+	int	10h
 
     mov ax,4C00h
     int 21h
@@ -51,11 +97,65 @@ update_head_coordinates proc
     shl bx, 1
     mov bx, [directions+bx]
     call get_head_coordinates   
-    call inc_head    
+        
     add cl, bl
     add ch, bh
-    call set_head_coordinates
-    ret
+    ; call inc_head
+    ; call set_head_coordinates
+
+    ;; ПРОВЕРИМ НОВЫЕ КООРДИНАТЫ НА СТЕНЫ И САМОПЕРЕСЕЧЕНИЕ.
+    mov dh, ch
+    mov dl, cl
+    xor bx, bx
+    mov ah, 02
+    int 10h
+
+    mov ah, 08h ; Прочитать символ
+    int 10h
+    
+    @@portal:
+        cmp al, 'O'
+        jne @@death
+        cmp ch, 0   ;;Если портал в верхней стене, то перемещаемся вниз
+        jne @@left
+            mov ch, 22
+            jmp @@portal_next1
+        @@left:
+            mov cl, 0
+        @@portal_next1:
+        ; call set_head_coordinates
+        jmp @@update
+         
+    
+    @@death:
+        cmp al, '#'
+        jne @@spring
+        jmp GAME_OVER
+    
+    @@spring:
+        cmp al, 'Z'
+        jne @@selfcross
+        call revert_snake
+    
+        ; mov dh, ch
+        ; mov dl, cl
+        ; xor bx, bx
+        ; mov ah, 02
+        ; mov al, 'Z'
+        ; int 10h
+
+        jmp @@ret
+    
+    @@selfcross:
+        cmp al, '*'
+        jne @@update
+
+    @@update:
+        call inc_head
+        call set_head_coordinates
+        call remove_tail
+    @@ret:
+        ret
 update_head_coordinates endp
 
 
@@ -155,6 +255,62 @@ init_snake proc
     ret
 init_snake endp
 
+draw_walls proc
+
+    ;; Верхняя стена - телепорт
+    mov dh, 0
+    mov dl, 0
+    xor bx, bx
+    mov ah, 02
+    int 10h
+
+    mov ah, 0Ah
+    mov al, 'O'
+    mov bh, 0
+    mov cx, 80
+    int 10h
+
+    ;; нижняя стена - прыгун
+    mov dh, 23
+    mov dl, 0
+    xor bx, bx
+    mov ah, 02
+    int 10h
+
+    mov ah, 0Ah
+    mov al, 'Z'
+    mov bh, 0
+    mov cx, 80
+    int 10h
+
+    ;; левая стена - убийца
+    mov dh, 1
+    mov dl, 0
+    xor bx, bx
+
+    mov al, '#'
+    push 22
+    @@left_loop:
+        mov cx, 1
+        mov ah, 02
+        int 10h
+
+        mov ah, 0Ah
+        int 10h
+
+
+        int 10h
+        inc dh
+        pop cx 
+        dec cx
+        push cx
+        cmp cx, 0
+        jg @@left_loop
+    pop cx
+
+    ret
+draw_walls endp
+
 key_press proc
     mov ax, 0100h
 	int 16h
@@ -164,10 +320,7 @@ key_press proc
     
     ;; ESC
     cmp ah, 01h
-    je @@exit
-    jne @@nxt1
-    jmp exit
-    @@nxt1:
+    je exit
 
     ;; down 
     cmp ah, 50h
@@ -208,7 +361,7 @@ key_press proc
     ;; minus
     cmp ah, 0Ch
     jne @@nxt6
-    cmp speed, 6
+    cmp speed, 9
     jg @@nxt6
     inc speed
     jmp ret1
@@ -218,11 +371,11 @@ key_press proc
     cmp ah, 0Dh
     jne @@nxt7
     cmp speed, 1
-    jl @@nxt7
+    jle @@nxt7
     dec speed
     jmp ret1
     @@nxt7:
-
+   
  
     ret1: 
     ret
@@ -230,11 +383,22 @@ key_press endp
 
 inc_head proc
     push bx
-    inc head
+    
     mov bx, head
+    add bx, snake_trav
+    mov head, bx
+
+    
     cmp bx, buffer_len
-    jb @@ret1
+    jl @@next1
     mov head, 0
+    
+    @@next1:
+    cmp bx, 0
+    jge @@ret1
+    mov head, buffer_len
+    dec head
+
     @@ret1:
     pop bx
     ret
@@ -242,15 +406,42 @@ inc_head endp
 
 inc_tail proc
     push bx
-    inc tail
+
     mov bx, tail
+    add bx, snake_trav
+    mov tail, bx
+    
+
+    
     cmp bx, buffer_len
-    jb @@ret2
+    jl @@next1
     mov tail, 0
-    @@ret2:
+    
+    @@next1:
+    cmp bx, 0
+    jge @@ret1
+    mov tail, buffer_len 
+    dec tail
+
+
+    @@ret1:
     pop bx
     ret
 inc_tail endp
+
+revert_snake proc
+    push bx cx
+    
+    mov bx, tail
+    mov cx, head
+    mov tail, cx
+    mov head, bx
+    mov next_direction, 1   
+    pop cx bx
+    neg snake_trav
+    
+    ret
+revert_snake endp
 
 print_ax proc
     push ax
