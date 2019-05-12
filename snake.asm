@@ -3,16 +3,16 @@
 locals
 .data
     ASCII   db "0000 ","$"           ; buffer for ASCII string
-    buffer_len  = 10
+    buffer_len  = 40
    
-    init_length db 4
+    init_length db 30
     next_direction db 3
 
     snake_body  dw 20*256+20, 2000 dup('*')
-    directions dw 0100h, 0FF00h, 00FFh, 0001h; down, up, left, right
+    directions dw 0100h, 0FF00h, 00FFh, 0001h ; down, up, left, right
 
     wall_type db 0
-    ;; Слева стена - убийца, справа стена - прыгун, снизу телепорт, сверху зависит от типа
+    ;; Слева стена - убийца, снизу стена - прыгун, снизу телепорт, справа зависит от типа
 
 
     head        dw 0
@@ -46,6 +46,15 @@ main:
     int 10h
     mov ax, tail
     call print_ax
+
+    mov dh, 3
+    mov dl, 1
+    xor bx, bx
+    mov ah, 02
+    int 10h
+    mov ax, snake_trav
+    call print_ax
+
 
     ; mov si, [head]
     ; shl si, 1
@@ -100,8 +109,6 @@ update_head_coordinates proc
         
     add cl, bl
     add ch, bh
-    ; call inc_head
-    ; call set_head_coordinates
 
     ;; ПРОВЕРИМ НОВЫЕ КООРДИНАТЫ НА СТЕНЫ И САМОПЕРЕСЕЧЕНИЕ.
     mov dh, ch
@@ -136,15 +143,7 @@ update_head_coordinates proc
         cmp al, 'Z'
         jne @@selfcross
         call revert_snake
-    
-        ; mov dh, ch
-        ; mov dl, cl
-        ; xor bx, bx
-        ; mov ah, 02
-        ; mov al, 'Z'
-        ; int 10h
-
-        jmp @@ret
+        jmp @@ret ;; Не обновляем координаты, просто поменяли и всё.
     
     @@selfcross:
         cmp al, '*'
@@ -229,6 +228,14 @@ get_head_coordinates proc;; ch - координата x, cl - координат
 
     ret
 get_head_coordinates endp
+
+get_tail_coordinates proc;; ch - координата x, cl - координата y
+    mov si, [tail]
+    shl si, 1
+    mov cx, snake_body[si]
+
+    ret
+get_tail_coordinates endp
 
 set_head_coordinates proc;; ch - координата x, cl - координата y
     mov si, [head]
@@ -429,19 +436,7 @@ inc_tail proc
     ret
 inc_tail endp
 
-revert_snake proc
-    push bx cx
-    
-    mov bx, tail
-    mov cx, head
-    mov tail, cx
-    mov head, bx
-    mov next_direction, 1   
-    pop cx bx
-    neg snake_trav
-    
-    ret
-revert_snake endp
+
 
 print_ax proc
     push ax
@@ -467,10 +462,91 @@ print_ax proc
 print_ax endp
 
 remove_tail proc
+
+        call get_tail_coordinates   ;; в CX кординаты нашего хвоста, который мы хотим удалить 
+        mov ax, tail
+        @@loop:
+            add ax, snake_trav
+        
+            cmp ax, buffer_len
+            jl @@next1
+            mov ax, 0
+            @@next1:
+            cmp ax, 0
+            jge @@next2
+            mov ax, buffer_len
+            dec ax
+
+        @@next2:
+    
+        mov si, ax
+        shl si, 1
+        cmp cx, snake_body[si]
+        je @@ret1
+
+        cmp ax, head
+        jne @@loop ;; Если есть коордната бывшего хвоста в массиве, то надо 
+    
+    @@remove:
     call print_tail
+
+    @@ret1:
     call inc_tail
+
     ret
 remove_tail endp
+
+revert_snake proc
+    push bx cx
+
+
+    mov bx, tail
+    mov cx, head
+    mov tail, cx
+    mov head, bx
+
+
+
+    neg snake_trav
+    pop cx bx
+
+    ret
+revert_snake endp
+get_prev_head proc
+    push bx
+
+    mov dh, 10
+    mov dl, 18 
+    xor bx, bx
+    mov ah, 02
+    int 10h
+    
+    mov bx, head
+    sub bx, snake_trav
+    
+    cmp bx, buffer_len
+    jl @@next1
+    mov bx, 0
+    
+    @@next1:
+    cmp bx, 0
+    jge @@ret1
+    mov bx, buffer_len
+    dec bx
+
+
+
+
+    mov ax, 1
+    call print_ax
+
+
+
+    @@ret1:
+    pop bx
+
+    ret
+get_prev_head endp
 
 end start
 
