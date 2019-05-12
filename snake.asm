@@ -5,7 +5,7 @@ locals
     ASCII   db "0000 ","$"           ; buffer for ASCII string
     buffer_len  = 40
    
-    init_length db 30
+    init_length db 16
     next_direction db 3
 
     snake_body  dw 20*256+20, 2000 dup('*')
@@ -19,11 +19,13 @@ locals
     tail        dw 0
     snake_trav  dw 1
 
+    is_pause db 0
     speed dw 7
 
 .code
 org 100h
 start:
+
     mov ax,0006h
 	int	10h
     
@@ -31,6 +33,15 @@ start:
     call draw_walls
 
 main:
+    cmp is_pause, 0
+        je @@not_pause
+        mov ah, 0
+        int 16h
+        mov is_pause, 0
+
+
+    @@not_pause:
+    
     mov dh, 1
     mov dl, 1
     xor bx, bx
@@ -44,10 +55,30 @@ main:
     xor bx, bx
     mov ah, 02
     int 10h
+    call get_head_coordinates ;; cx
+    mov ax, cx
+    call print_ax
+    
+    mov dh, 3
+    mov dl, 1
+    xor bx, bx
+    mov ah, 02
+    int 10h
+    call get_prev_head_coordinates ;; cx
+    mov ax, cx
+    call print_ax
+
+
+
+    mov dh, 4
+    mov dl, 1
+    xor bx, bx
+    mov ah, 02
+    int 10h
     mov ax, tail
     call print_ax
 
-    mov dh, 3
+    mov dh, 5
     mov dl, 1
     xor bx, bx
     mov ah, 02
@@ -382,6 +413,13 @@ key_press proc
     dec speed
     jmp ret1
     @@nxt7:
+
+    ;; Pause
+    cmp ah, 39h
+    jne @@nxt8
+    mov is_pause, 1
+    jmp ret1
+    @@nxt8:
    
  
     ret1: 
@@ -496,30 +534,7 @@ remove_tail proc
     ret
 remove_tail endp
 
-revert_snake proc
-    push bx cx
-
-
-    mov bx, tail
-    mov cx, head
-    mov tail, cx
-    mov head, bx
-
-
-
-    neg snake_trav
-    pop cx bx
-
-    ret
-revert_snake endp
 get_prev_head proc
-    push bx
-
-    mov dh, 10
-    mov dl, 18 
-    xor bx, bx
-    mov ah, 02
-    int 10h
     
     mov bx, head
     sub bx, snake_trav
@@ -533,20 +548,82 @@ get_prev_head proc
     jge @@ret1
     mov bx, buffer_len
     dec bx
-
-
-
-
-    mov ax, 1
-    call print_ax
-
+    
 
 
     @@ret1:
-    pop bx
-
     ret
 get_prev_head endp
+
+get_prev_head_coordinates proc
+    push bx
+    
+    mov bx, head
+    sub bx, snake_trav
+    
+    cmp bx, buffer_len
+    jl @@next1
+    mov bx, 0
+    
+    @@next1:
+    cmp bx, 0
+    jge @@ret1
+    mov bx, buffer_len
+    dec bx
+    
+    
+    @@ret1:
+    mov si, bx
+    shl si, 1
+    mov cx, snake_body[si]
+    pop bx
+
+
+    ret
+get_prev_head_coordinates endp
+
+revert_snake proc
+    push bx cx
+
+    mov bx, tail
+    mov cx, head
+    mov tail, cx
+    mov head, bx
+
+    call get_head_coordinates ;; cx
+    mov bx, cx
+    call get_prev_head_coordinates ;; cx
+
+    sub bx, cx
+    
+    cmp bx, 0100h
+    jne @@next1
+    mov next_direction, 1
+    @@next1:
+
+    cmp bx, 0ff00h
+    jne @@next2
+    mov next_direction, 0
+    @@next2:
+
+    cmp bl, 0ffh
+    jne @@next3
+    mov next_direction, 3
+    @@next3:
+
+    cmp bx, 0001h
+    jne @@next4
+    mov next_direction, 2
+    @@next4:
+
+    
+
+
+    neg snake_trav
+    pop cx bx
+
+    ret
+revert_snake endp
 
 end start
 
