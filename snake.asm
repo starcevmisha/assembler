@@ -11,8 +11,9 @@ locals
     snake_body  dw 20*256+20, 2000 dup('*')
     directions dw 0100h, 0FF00h, 00FFh, 0001h ; down, up, left, right
 
-    wall_type db 0
+    wall_type db 2 ;; 0 - убийца, 1 - прыгун, 2 - телепорт
     ;; Слева стена - убийца, снизу стена - прыгун, снизу телепорт, справа зависит от типа
+    intersection_type db 0 ;;
 
 
     head        dw 0
@@ -25,7 +26,6 @@ locals
 .code
 org 100h
 start:
-
     mov ax,0006h
 	int	10h
     
@@ -159,7 +159,7 @@ update_head_coordinates proc
             mov ch, 22
             jmp @@portal_next1
         @@left:
-            mov cl, 0
+            mov cl, 1
         @@portal_next1:
         ; call set_head_coordinates
         jmp @@update
@@ -187,7 +187,6 @@ update_head_coordinates proc
     @@ret:
         ret
 update_head_coordinates endp
-
 
 hide_cursor proc
     mov dh, 80
@@ -346,6 +345,46 @@ draw_walls proc
         jg @@left_loop
     pop cx
 
+    ;; правая стена
+    mov dh, 1
+    mov dl, 79 
+    xor bx, bx
+
+    cmp wall_type, 0
+        jne @@next_type1
+        mov al, '#'
+        @@next_type1:
+
+    cmp wall_type, 1
+        jne @@next_type2
+        mov al, 'Z'
+        @@next_type2:
+    
+    cmp wall_type, 2
+        jne @@next_type3
+        mov al, 'O'
+        @@next_type3:
+
+
+    push 22 ; Это наш счетчик
+    @@right_loop:
+        mov cx, 1
+        mov ah, 02
+        int 10h
+
+        mov ah, 0Ah
+        int 10h
+
+
+        int 10h
+        inc dh
+        pop cx 
+        dec cx
+        push cx
+        cmp cx, 0
+        jg @@right_loop
+    pop cx
+
     ret
 draw_walls endp
 
@@ -473,8 +512,6 @@ inc_tail proc
     pop bx
     ret
 inc_tail endp
-
-
 
 print_ax proc
     push ax
