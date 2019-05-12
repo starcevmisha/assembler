@@ -2,16 +2,17 @@
 locals
 .data
     ASCII   db "0000 ","$"           ; buffer for ASCII string
-    buffer_len  db 200
-    snake_body  db 10,10, 255 dup(0)
+    buffer_len  dw 1000
+
     
     init_length db 4
     next_direction db 3
-
+    head        dw 0
+    tail        dw 0
+    snake_body  dw 10,60h, 2000 dup('*')
     directions dw 0100h, 0FF00h, 00FFh, 0001h; down, up, left, right
-    
-    head        db 0
-    tail        db 0
+
+    speed db 2
 
 .code
 org 100h
@@ -68,28 +69,27 @@ hide_cursor proc
 hide_cursor endp
 
 delay proc
-    push cx
-	mov ah,0
-	int 1Ah 
-	add dx,3
-	mov bx,dx
-    repeat:   
-	int 1Ah
-	cmp dx,bx
-	jl repeat
-	pop cx
+    push ax bx
+        mov     ax, speed         ; Pause for duration of note.
+    @@pause1:
+        mov     bx, 32767
+    @@pause2:
+        dec     bx
+        jne     @@pause2
+        dec     ax
+        jne     @@pause1
+    pop bx ax
 	ret
 delay endp
 
 print_head proc
     push ax
     
-    xor bx, bx
-    mov bl, head
-    shl bl, 1
-    mov dh, byte ptr [snake_body+bx]; уcтановим столбец
-    inc bx
-    mov dl, byte ptr [snake_body+bx];Установим строку
+    mov si, [head]
+    shl si, 1
+
+    mov dx, snake_body[si]
+
     xor bx, bx
     mov ah, 02
     int 10h
@@ -104,13 +104,12 @@ print_head endp
 
 print_tail proc
     push ax
+    
+    mov si, [tail]
+    shl si, 1
 
-    xor bx, bx
-    mov bl, tail
-    shl bl, 1
-    mov dh, byte ptr [snake_body+bx]; уcтановим столбец
-    inc bx
-    mov dl, byte ptr [snake_body+bx];Установим строку
+    mov dx, snake_body[si]
+
     xor bx, bx
     mov ah, 02
     int 10h
@@ -124,26 +123,19 @@ print_tail proc
 print_tail endp
 
 get_head_coordinates proc;; ch - координата x, cl - координата y
-    push bx
-    xor bx, bx
-    mov bl, head
-    shl bl, 1
-    mov ch, [snake_body+bx];; ch - уоордината x
-    inc bl
-    mov cl, [snake_body+bx];; cl - координата y
-    pop bx
+    mov si, [head]
+    shl si, 1
+    mov cx, snake_body[si]
+
     ret
 get_head_coordinates endp
 
 set_head_coordinates proc;; ch - координата x, cl - координата y
-    push bx
-    xor bx, bx
-    mov bl, head
-    shl bl, 1
-    mov [snake_body+bx], ch
-    inc bx
-    mov [snake_body+bx], cl
-    pop bx
+    mov si, [head]
+    shl si, 1
+
+    mov snake_body[si], cx
+    
     ret
 set_head_coordinates endp
 
@@ -172,6 +164,7 @@ key_press proc
     
     ;; ESC
     cmp ah, 01h
+    je @@exit
     jne @@nxt1
     jmp exit
     @@nxt1:
@@ -212,7 +205,25 @@ key_press proc
     jmp ret1
     @@nxt5:
 
+    ;; minus
+    cmp ah, 0Ch
+    jne @@nxt6
+    cmp speed, 6
+    jg @@nxt6
+    inc speed
+    jmp ret1
+    @@nxt6:
 
+    ;; plus
+    cmp ah, 0Dh
+    jne @@nxt7
+    cmp speed, 1
+    jl @@nxt7
+    dec speed
+    jmp ret1
+    @@nxt7:
+
+ 
     ret1: 
     ret
 key_press endp
@@ -220,8 +231,8 @@ key_press endp
 inc_head proc
     push bx
     inc head
-    mov bl, head
-    cmp bl, buffer_len
+    mov bx, head
+    cmp bx, buffer_len
     jb @@ret1
     mov head, 0
     @@ret1:
@@ -232,8 +243,8 @@ inc_head endp
 inc_tail proc
     push bx
     inc tail
-    mov bl, tail
-    cmp bl, buffer_len
+    mov bx, tail
+    cmp bx, buffer_len
     jb @@ret2
     mov tail, 0
     @@ret2:
