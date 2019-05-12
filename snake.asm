@@ -11,9 +11,8 @@ locals
     snake_body  dw 20*256+20, 2000 dup('*')
     directions dw 0100h, 0FF00h, 00FFh, 0001h ; down, up, left, right
 
-    wall_type db 2 ;; 0 - убийца, 1 - прыгун, 2 - телепорт
-    ;; Слева стена - убийца, снизу стена - прыгун, снизу телепорт, справа зависит от типа
-    intersection_type db 0 ;;
+    wall_type db 2          ;; 0 - убийца, 1 - прыгун, 2 - телепорт
+    intersection_type db 1  ;; 0 - умирает, 1 - проходит, 2 - отрезает
 
 
     head        dw 0
@@ -111,6 +110,8 @@ main:
     
     call print_head
     call update_head_coordinates    ;; Обновляем координаты с учетом стен
+
+    call check_intersect
    
     @@next:
     call hide_cursor
@@ -536,41 +537,6 @@ print_ax proc
     ret
 print_ax endp
 
-remove_tail proc
-
-        call get_tail_coordinates   ;; в CX кординаты нашего хвоста, который мы хотим удалить 
-        mov ax, tail
-        @@loop:
-            add ax, snake_trav
-        
-            cmp ax, buffer_len
-            jl @@next1
-            mov ax, 0
-            @@next1:
-            cmp ax, 0
-            jge @@next2
-            mov ax, buffer_len
-            dec ax
-
-        @@next2:
-    
-        mov si, ax
-        shl si, 1
-        cmp cx, snake_body[si]
-        je @@ret1
-
-        cmp ax, head
-        jne @@loop ;; Если есть коордната бывшего хвоста в массиве, то надо 
-    
-    @@remove:
-    call print_tail
-
-    @@ret1:
-    call inc_tail
-
-    ret
-remove_tail endp
-
 get_prev_head proc
     
     mov bx, head
@@ -661,6 +627,114 @@ revert_snake proc
 
     ret
 revert_snake endp
+
+remove_tail proc
+
+    call get_tail_coordinates   ;; в CX кординаты нашего хвоста, который мы хотим удалить 
+    mov ax, head
+    @@loop:        
+        mov si, ax
+        shl si, 1
+        cmp cx, snake_body[si]
+        je @@ret1
+
+        sub ax, snake_trav
+        cmp ax, buffer_len
+        jl @@next1
+        mov ax, 0
+        @@next1:
+        cmp ax, 0
+        jge @@next2
+        mov ax, buffer_len
+        dec ax
+
+        @@next2:
+
+    cmp ax, tail
+    jne @@loop 
+    
+    @@remove:
+    call print_tail
+
+    @@ret1:
+    call inc_tail
+
+    ret
+remove_tail endp
+
+check_intersect proc
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+nop
+
+    call get_head_coordinates   ;; в CX кординаты нашего хвоста, который мы хотим удалить 
+    mov ax, head
+    @@loop:
+
+        sub  ax, snake_trav
+        cmp ax, buffer_len
+        jl @@next1
+        mov ax, 0
+        @@next1:
+        cmp ax, 0
+        jge @@next2
+        mov ax, buffer_len
+        dec ax
+
+        @@next2:
+        mov si, ax
+        shl si, 1
+        cmp cx, snake_body[si]
+        je @@found
+
+
+
+    cmp ax, tail
+    jne @@loop 
+    
+    jmp ret1
+
+
+    @@found:
+        @@game_over:
+            cmp intersection_type, 0
+            jne @@cut
+                call delay
+                jmp GAME_OVER
+        @@cut:
+            cmp intersection_type, 1
+            jne @@nothing
+            
+                call print_tail
+                call inc_tail
+                cmp ax, tail
+                jne @@cut
+
+            
+
+        @@nothing:
+
+
+    @@ret1:
+    ret
+check_intersect endp
 
 end start
 
