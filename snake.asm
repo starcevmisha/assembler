@@ -5,14 +5,14 @@ locals
     ASCII   db "0000 ","$"           ; buffer for ASCII string
     buffer_len  = 40
    
-    init_length db 16
+    init_length db 1
     next_direction db 3
 
     snake_body  dw 20*256+20, 2000 dup('*')
     directions dw 0100h, 0FF00h, 00FFh, 0001h ; down, up, left, right
 
     wall_type db 2          ;; 0 - убийца, 1 - прыгун, 2 - телепорт
-    intersection_type db 1  ;; 0 - умирает, 1 - проходит, 2 - отрезает
+    intersection_type db 2  ;; 0 - умирает, 1 - отрезает, 2 - проходит
 
 
     head        dw 0
@@ -22,25 +22,22 @@ locals
     is_pause db 0
     speed dw 7
 
+
+    
+
+    seed		dw 	0
+    seed2		dw	0
+
 .code
 org 100h
 start:
-    mov ax,0006h
+    mov ax, 0003h
 	int	10h
     
     call init_snake; напечать змейку в начале
     call draw_walls
 
-main:
-    cmp is_pause, 0
-        je @@not_pause
-        mov ah, 0
-        int 16h
-        mov is_pause, 0
-
-
-    @@not_pause:
-    
+main:    
     mov dh, 1
     mov dl, 1
     xor bx, bx
@@ -104,8 +101,19 @@ main:
     ; int 10h
     ; mov ax, speed
     ; call print_ax
-    
-    
+
+
+    cmp is_pause, 0
+        je @@not_pause
+        mov ah, 0
+        int 16h
+        mov is_pause, 0
+
+
+
+    @@not_pause:
+
+        call spawn_food
     call key_press
     
     call print_head
@@ -151,6 +159,24 @@ update_head_coordinates proc
 
     mov ah, 08h ; Прочитать символ
     int 10h
+
+
+    @@grow:
+        cmp al, '$'
+        jne @@cut
+        call inc_head
+        call set_head_coordinates
+        jmp @@ret
+
+    @@cut:
+        cmp al, 171
+        jne @@portal
+        
+        call inc_head
+        call set_head_coordinates
+        call remove_tail
+        call remove_tail
+        jmp @@ret   
     
     @@portal:
         cmp al, 'O'
@@ -164,13 +190,19 @@ update_head_coordinates proc
         @@portal_next1:
         ; call set_head_coordinates
         jmp @@update
-         
+        
     
     @@death:
         cmp al, '#'
-        jne @@spring
+        jne @@death2
         jmp GAME_OVER
     
+    @@death2:
+        cmp al, 'X'
+        jne @@spring
+        jmp GAME_OVER
+
+
     @@spring:
         cmp al, 'Z'
         jne @@selfcross
@@ -224,8 +256,10 @@ print_head proc
     mov ah, 02
     int 10h
 
-    mov cx,1;напечатаем символ
-	mov ax,0A2Ah
+    mov ah, 9   ; номер функции 
+    mov al, '*'
+    mov cx, 1   ; число повторений
+    mov bl, 000001110b ; арибут
 	int 10h
     
     pop ax
@@ -277,6 +311,120 @@ set_head_coordinates proc;; ch - координата x, cl - координат
     ret
 set_head_coordinates endp
 
+random_number proc
+	push	cx
+	push	dx
+	push	di
+ 
+	mov	dx, word [seed]
+	or	dx, dx
+	jnz	@@1
+	mov ax, word[ds:006ch]
+	mov	dx, ax
+    @@1:	
+	mov	ax, word [seed2]
+	or	ax, ax
+	jnz	@@2
+	in	ax, 40h
+    @@2:		
+	mul	dx
+	inc	ax
+	mov 	word [seed], dx
+	mov	word [seed2], ax
+ 
+	xor	dx, dx
+	sub	di, si
+	inc	di
+	div	di
+	mov	ax, dx
+	add	ax, si
+ 
+	pop	di
+	pop	dx
+	pop	cx
+
+
+    ret
+random_number endp
+
+random_coordinates proc ; возвраащет в ax рандомные координаты xxyy
+
+    push si di dx
+    mov si, 2
+    mov di, 22
+    call random_number
+    mov dh, al
+
+    mov si, 2
+    mov di, 78
+    call random_number
+    mov dl, al
+
+    mov ax, dx
+
+    pop dx di si
+
+    ret
+random_coordinates endp
+
+spawn_food proc
+
+
+
+    call random_coordinates
+    mov dx, ax  ;; координаты
+    xor bx, bx
+    mov ah, 02
+    int 10h
+
+    mov ah, 08h     ;; Только на пустое место
+    int 10h
+    cmp al, ' '
+    jne @@ret
+    
+    mov si, 0
+    mov di, 100
+    call random_number
+    
+    mov bx, ax
+    and bx, 1111b
+    cmp bx, 1
+    je @@food
+    
+        mov bx, ax
+            cmp bx, 3
+    je @@death
+
+    mov bx, ax
+    cmp bx, 2
+    je @@cut
+
+    jmp @@ret
+
+    @@food:
+        mov al, '$'
+        mov bl, 000000010b ; арибут
+        jmp @@print
+    
+    @@death: 
+        mov al, 'X'
+        mov bl, 000000110b ; арибут
+        jmp @@print
+    @@cut:
+        mov al, 171
+        mov bl, 000001100b ; арибут
+        jmp @@print
+    
+    @@print:
+
+
+    mov ah, 9   ; номер функции 
+    mov cx, 1   ; число повторений
+	int 10h
+
+    @@ret:
+    ret
+spawn_food endp
 
 init_snake proc
     mov al, init_length
@@ -294,7 +442,6 @@ init_snake proc
 init_snake endp
 
 draw_walls proc
-
     ;; Верхняя стена - телепорт
     mov dh, 0
     mov dl, 0
@@ -302,9 +449,10 @@ draw_walls proc
     mov ah, 02
     int 10h
 
-    mov ah, 0Ah
+    mov ah, 9h
     mov al, 'O'
     mov bh, 0
+    mov bl, 1110b
     mov cx, 80
     int 10h
 
@@ -315,9 +463,10 @@ draw_walls proc
     mov ah, 02
     int 10h
 
-    mov ah, 0Ah
+    mov ah, 09h
     mov al, 'Z'
     mov bh, 0
+    mov bl, 101b
     mov cx, 80
     int 10h
 
@@ -333,7 +482,8 @@ draw_walls proc
         mov ah, 02
         int 10h
 
-        mov ah, 0Ah
+        mov ah, 09h
+        mov bl, 1001b
         int 10h
 
 
@@ -629,7 +779,6 @@ revert_snake proc
 revert_snake endp
 
 remove_tail proc
-
     call get_tail_coordinates   ;; в CX кординаты нашего хвоста, который мы хотим удалить 
     mov ax, head
     @@loop:        
@@ -663,27 +812,6 @@ remove_tail proc
 remove_tail endp
 
 check_intersect proc
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-nop
-
     call get_head_coordinates   ;; в CX кординаты нашего хвоста, который мы хотим удалить 
     mov ax, head
     @@loop:
@@ -721,7 +849,7 @@ nop
         @@cut:
             cmp intersection_type, 1
             jne @@nothing
-            
+                
                 call print_tail
                 call inc_tail
                 cmp ax, tail
