@@ -6,6 +6,7 @@ locals
     buffer_len  = 40
    
     init_length db 1
+    init_food_number db 5
     next_direction db 3
 
     snake_body  dw 20*256+20, 2000 dup('*')
@@ -34,6 +35,7 @@ start:
     mov ax, 0003h
 	int	10h
     
+    call init_food
     call init_snake; напечать змейку в начале
     call draw_walls
 
@@ -113,7 +115,7 @@ main:
 
     @@not_pause:
 
-        call spawn_food
+    call spawn_food
     call key_press
     
     call print_head
@@ -124,7 +126,10 @@ main:
     @@next:
     call hide_cursor
 
+    call print_statistics
     call delay
+
+
     jmp main
 GAME_OVER:
 exit:
@@ -369,8 +374,6 @@ random_coordinates endp
 
 spawn_food proc
 
-
-
     call random_coordinates
     mov dx, ax  ;; координаты
     xor bx, bx
@@ -440,6 +443,27 @@ init_snake proc
 
     ret
 init_snake endp
+init_food proc
+    mov al, init_food_number
+    @@loop2: 
+    push ax
+    call random_coordinates
+    mov dx, ax  ;; координаты
+    xor bx, bx
+    mov ah, 02
+    int 10h
+    
+    mov al, '$'
+    mov bl, 000000010b ; арибут
+    mov ah, 9   ; номер функции 
+    mov cx, 1   ; число повторений
+	int 10h
+    pop ax
+    dec al
+    jnz @@loop2
+
+    ret
+init_food endp
 
 draw_walls proc
     ;; Верхняя стена - телепорт
