@@ -23,7 +23,23 @@ locals
     is_pause db 0
     speed dw 7
 
+    ;; музыка
+    freqs  dw 9121,8609,8126,7670,7239,6833,6449,6087,5746,5423,5119,4831,4560,4304,4063,3834,3619,3416,3224,3043,2873,2711,2559,2415,2280,2152,2031,1917,1809,1715,1612,1521,1436,1355,1292,1207
 
+    song_counter db 3
+    song_offset dw 0
+    
+    song_1      db 1,1, 1,3, 2,1, 1,6 ;; октава, клавиша
+    song_1_len  db 4-1
+
+    song_2      db 0,1, 2,2, 0,3, 0,4
+    song_2_len  db 4-1
+
+    song_jump       db 0,4, 2,1, 2,7
+    song_jump_len   db 2
+
+    song_portal     db 0,1, 2,6, 1,5, 1,3, 1,4
+    song_portal_len db 5
     
 
     seed		dw 	0
@@ -38,8 +54,14 @@ start:
     call init_food
     call init_snake; напечать змейку в начале
     call draw_walls
-
+        mov al, song_2_len
+        mov song_counter, al
+        mov ax, offset song_2
+        mov song_offset, ax 
 main:    
+
+
+
     mov dh, 1
     mov dl, 1
     xor bx, bx
@@ -110,11 +132,14 @@ main:
         mov ah, 0
         int 16h
         mov is_pause, 0
-
-
-
     @@not_pause:
+ 
+ 
+    cmp song_counter, 0
+    jl @@without_song
+        call play_note
 
+    @@without_song:
     call spawn_food
     call key_press
     
@@ -126,7 +151,7 @@ main:
     @@next:
     call hide_cursor
 
-    call print_statistics
+    ; call print_statistics
     call delay
 
 
@@ -171,6 +196,11 @@ update_head_coordinates proc
         jne @@cut
         call inc_head
         call set_head_coordinates
+
+            mov al, song_1_len
+            mov song_counter, al
+            mov ax, offset song_1
+            mov song_offset, ax 
         jmp @@ret
 
     @@cut:
@@ -181,6 +211,11 @@ update_head_coordinates proc
         call set_head_coordinates
         call remove_tail
         call remove_tail
+
+            mov al, song_2_len
+            mov song_counter, al
+            mov ax, offset song_2
+            mov song_offset, ax 
         jmp @@ret   
     
     @@portal:
@@ -194,6 +229,12 @@ update_head_coordinates proc
             mov cl, 1
         @@portal_next1:
         ; call set_head_coordinates
+
+            mov al, song_portal_len
+            mov song_counter, al
+            mov ax, offset song_portal
+            mov song_offset, ax 
+        
         jmp @@update
         
     
@@ -212,6 +253,13 @@ update_head_coordinates proc
         cmp al, 'Z'
         jne @@selfcross
         call revert_snake
+
+
+            mov al, song_jump_len
+            mov song_counter, al
+            mov ax, offset song_jump
+            mov song_offset, ax 
+
         jmp @@ret ;; Не обновляем координаты, просто поменяли и всё.
     
     @@selfcross:
@@ -888,5 +936,55 @@ check_intersect proc
     ret
 check_intersect endp
 
+play_note proc
+    push cx ax bx
+
+    mov     al, 182         ; Prepare the speaker for the
+    out     43h, al         ;  note.
+    
+    xor ax, ax
+    xor cx, cx
+
+    xor bx, bx
+    mov bl, song_counter
+    mov si, bx
+    shl si, 1
+    mov bx, [song_offset]
+    mov cl, bx[si]      ; октава
+    mov al, bx[si+1]    ; клавиша
+
+    
+    @@mul:
+    cmp cl, 0
+    je @@next1
+    dec cl
+    add al,12
+    jmp @@mul
+
+    @@next1:
+    xor bx, bx
+    mov bl, al
+    shl bl,1                ; так как частота у нас двумя байтами
+    mov ax, [freqs+bx]      ; частота
+
+    out     42h, al         ; Output low byte.
+    mov     al, ah          ; Output high byte.
+    out     42h, al 
+    in      al, 61h         ; Turn on note (get value from
+                                ;  port 61h).
+    or      al, 00000011b   ; Set bits 1 and 0.
+    out     61h, al         ; Send new value.
+    pop bx ax cx
+
+    dec song_counter
+    cmp song_counter, 0
+    jge @@ret1
+        in      al, 61h         ; Turn off note (get value from port 61h).
+        and     al, 11111100b   ; Reset bits 1 and 0.
+        out     61h, al         ; Send new value.
+    
+    @@ret1:
+    ret
+play_note endp
 end start
 
