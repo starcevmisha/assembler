@@ -2,6 +2,11 @@
 .386
 locals
 .data
+    incorrect_init_length_str db "incorrect init length. Should be 1<= length <= 40", 10,13, "$"
+    incorrect_wall_type_str db "incorrect wall type. Should be 0<= length <= 2", 10,13, "$"
+    incorrect_init_food_str db "incorrect init food number. Should be 1<= length <= 40", 10,13, "$"
+
+    args_buffer      db 30 DUP (0)
     help_msg    db "Hello. This is SNAKE game by @starcev_misha 2019", 13, 10
                 db 10 dup(20h), "How to play?", 10, 13
                 db 10 dup(20h),"    W     - Up", 13,10
@@ -66,14 +71,14 @@ locals
     
     buffer_len  = 400
    
-    init_length db 5
+    init_length db 1
     init_food_number db 5
     next_direction db 3
 
     snake_body  dw 20*256+20, 2000 dup('*')
     directions dw 0100h, 0FF00h, 00FFh, 0001h ; down, up, left, right
 
-    wall_type db 2          ;; 0 - убийца, 1 - прыгун, 2 - телепорт
+    wall_type db 0          ;; 0 - убийца, 1 - прыгун, 2 - телепорт
     intersection_type db 2  ;; 0 - умирает, 1 - отрезает, 2 - проходит
 
 
@@ -97,24 +102,108 @@ locals
     song_1      db 2,1, 1,3, 2,1, 2,6 ;; октава, клавиша
     song_1_len  db 4-1
 
-    song_2      db 0,1, 2,2, 0,3, 0,4
+    song_2      db 0,1, 0,5, 0,3, 0,4
     song_2_len  db 4-1
 
-    song_jump       db 0,4, 2,1, 2,7
+    song_jump       db 2,1, 2,3, 2,7
     song_jump_len   db 2
 
-    song_portal     db 0,1, 2,6, 1,5, 1,3, 1,4
+    song_portal     db 0,5, 1,6, 0,5, 1,6, 0,5
     song_portal_len db 5
     
 
     seed		dw 	0
     seed2		dw	0
 
-
 .code
 org 100h
 start:
+    mov cl, ds:[0080h]  ; CX: number of bytes to write
+    mov di, 81h
     
+    args_loop:   
+        call read_next_arg
+        mov bl, 0
+        cmp bl, [args_buffer]
+        je restart
+
+        mov bl, 'l'    ;;length
+	    cmp bl, [args_buffer]
+        je change_init_length
+
+        mov bl, 'w'    ;;wall type
+	    cmp bl, [args_buffer]
+        je change_init_wall
+
+        mov bl, 'f'    ;;feed
+	    cmp bl, [args_buffer]
+        je change_init_food
+
+        mov bl, 'h'    ;;help
+	    cmp bl, [args_buffer]
+        je print_concole_help
+
+        jmp restart
+
+change_init_length:
+    call read_next_arg
+    call str_to_int
+    cmp al, 0
+    jle incorrect_init_length
+    cmp al, 40
+    jge incorrect_init_length
+    mov init_length, al
+    jmp args_loop
+
+change_init_wall:
+    call read_next_arg
+    call str_to_int
+    cmp al, 0
+    jl incorrect_wall_type
+    cmp al, 2
+    jg incorrect_wall_type
+    mov wall_type, al
+    jmp args_loop
+
+change_init_food:
+    call read_next_arg
+    call str_to_int
+    cmp al, 0
+    jle incorrect_init_food
+    cmp al, 40
+    jge incorrect_init_food
+    mov init_food_number, al
+    jmp args_loop
+
+incorrect_init_length:
+    mov dx, offset incorrect_init_length_str
+    mov ah, 09h
+    int 21h
+    
+    mov ax,4C00h
+    int 21h
+incorrect_wall_type:
+    mov dx, offset incorrect_wall_type_str
+    mov ah, 09h
+    int 21h
+    
+    mov ax,4C00h
+    int 21h
+incorrect_init_food:
+    mov dx, offset incorrect_init_food_str
+    mov ah, 09h
+    int 21h
+    
+    mov ax,4C00h
+    int 21h
+
+print_concole_help:
+    mov dx, offset help_msg
+    mov ah, 09h
+    int 21h
+    
+    mov ax,4C00h
+    int 21h
     
 restart:
     mov ax, 0003h
@@ -143,6 +232,7 @@ restart:
 main:    
     cmp is_pause, 0
         je @@not_pause
+        call turn_off_music
         mov ah, 0
         int 16h
         mov is_pause, 0
@@ -152,6 +242,7 @@ main:
 
     cmp is_help, 0
         je @@not_help
+        call turn_off_music
         mov ah, 0
         int 16h
         mov is_help, 0
@@ -178,6 +269,11 @@ main:
     @@next:
     call hide_cursor
 
+    ;; Проверим, что в змейке остались элементы
+    mov ax, head
+    cmp ax, tail
+    je game_over
+
     call delay
 
 
@@ -189,6 +285,8 @@ exit:
     xor bx, bx
     mov ah, 02
     int 10h
+
+    call turn_off_music
 
     mov ax,0003h
 	int	10h
@@ -1047,9 +1145,7 @@ play_note proc
     dec song_counter
     cmp song_counter, 0
     jge @@ret1
-        in      al, 61h         ; Turn off note (get value from port 61h).
-        and     al, 11111100b   ; Reset bits 1 and 0.
-        out     61h, al         ; Send new value.
+        call turn_off_music
     
     @@ret1:
     ret
@@ -1175,6 +1271,7 @@ init_help proc
 init_help endp
 
 GAME_OVER proc
+    call turn_off_music
     mov ah, 00
     mov al, 03  ; text mode 80x25 16 colours
     int 10h
@@ -1249,6 +1346,79 @@ GAME_OVER proc
     ret
 GAME_OVER endp
 
+turn_off_music proc
+        in      al, 61h         ; Turn off note (get value from port 61h).
+        and     al, 11111100b   ; Reset bits 1 and 0.
+        out     61h, al         ; Send new value.
+        ret
+turn_off_music endp
+
+read_next_arg proc
+    ; читает строку из di, пропускает пробелы
+    ; и  помещает первое значение после пробелов в args_buffer
+    cld
+    
+    push di
+    push cx
+    mov al, 0
+    mov di, offset args_buffer
+    xor cx, cx
+    mov cx, 30
+    rep stosb
+    pop cx
+    pop di
+
+    mov al, ' '
+    repe scasb
+    jz stop_loop1
+
+    dec di
+    inc cx
+
+    mov si, di
+    mov di, offset args_buffer
+    loop1:
+    mov al, [si]
+    cmp al, 20h
+    je stop_loop1
+    cmp cl, 0h
+    je stop_loop1
+    inc si
+    
+    stosb
+    dec cx
+    jmp loop1
+    stop_loop1:
+    mov al, '$'
+    stosb
+    mov di, si ; возвращаем обратно
+    ret
+read_next_arg endp
+
+str_to_int proc
+    ; читает строку из args_buffer
+    ; и  преобразует его в десятичное число
+    push di bx cx
+    mov di, offset args_buffer
+    xor ax, ax
+    mov bl, 10
+    @@loop:
+
+        mov cl, [di]
+        cmp cl ,'$'
+        je @@ret
+
+        sub cl, '0'
+
+        mul bl
+        add al, cl
+        
+        inc di
+        jmp @@loop
+    @@ret:
+        pop cx bx di
+        ret
+str_to_int endp
 
 end start
 
