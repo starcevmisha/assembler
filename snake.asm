@@ -24,6 +24,33 @@ locals
                 db "", 13,10
                 db 10 dup(20h),"EAT MORE!", 13,10
     help_msg_len equ $ - help_msg 
+
+                                                                                                               
+    game_over_str   db 18 dup (20h), "  ______    ______   __       __  ________ ",10,13
+                    db 18 dup (20h), " /      \  /      \ /  \     /  |/        |",10,13
+                    db 18 dup (20h), "/$$$$$$  |/$$$$$$  |$$  \   /$$ |$$$$$$$$/ ",10,13
+                    db 18 dup (20h), "$$ | _$$/ $$ |__$$ |$$$  \ /$$$ |$$ |__    ",10,13
+                    db 18 dup (20h), "$$ |/    |$$    $$ |$$$$  /$$$$ |$$    |   ",10,13
+                    db 18 dup (20h), "$$ |$$$$ |$$$$$$$$ |$$ $$ $$/$$ |$$$$$/    ",10,13
+                    db 18 dup (20h), "$$ \__$$ |$$ |  $$ |$$ |$$$/ $$ |$$ |_____ ",10,13
+                    db 18 dup (20h), "$$    $$/ $$ |  $$ |$$ | $/  $$ |$$       |",10,13
+                    db 18 dup (20h), " $$$$$$/  $$/   $$/ $$/      $$/ $$$$$$$$/ ",10,13
+                    db 18 dup (20h), "                                           ",10,13
+                    db 18 dup (20h), "  ______   __     __  ________  _______    ",10,13
+                    db 18 dup (20h), " /      \ /  |   /  |/        |/       \   ",10,13
+                    db 18 dup (20h), "/$$$$$$  |$$ |   $$ |$$$$$$$$/ $$$$$$$  |  ",10,13
+                    db 18 dup (20h), "$$ |  $$ |$$ |   $$ |$$ |__    $$ |__$$ |  ",10,13
+                    db 18 dup (20h), "$$ |  $$ |$$  \ /$$/ $$    |   $$    $$<   ",10,13
+                    db 18 dup (20h), "$$ |  $$ | $$  /$$/  $$$$$/    $$$$$$$  |  ",10,13
+                    db 18 dup (20h), "$$ \__$$ |  $$ $$/   $$ |_____ $$ |  $$ |  ",10,13
+                    db 18 dup (20h), "$$    $$/    $$$/    $$       |$$ |  $$ |  ",10,13
+                    db 18 dup (20h), " $$$$$$/      $/     $$$$$$$$/ $$/   $$/   ",10,13
+    game_over_str_len equ $ - game_over_str 
+
+    press_any_key_msg db "Press Any key To Restart"
+    press_any_key_msg_len equ $ - press_any_key_msg
+
+
     contacts    db "@starcev_misha"
     
 
@@ -32,11 +59,12 @@ locals
     buffer  db 6 dup(0), "$"
     bufferend db 0
 
-    length_str db "LENGTH: $"
-    maxlength_str db "MAX LENGTH: $"
-    speed_str db "SPEED: $"
+    length_str      db "LENGTH: "
+    maxlength_str   db "MAX LENGTH: "
+    eaten_str       db "EATEN $:    "
+    speed_str       db "SPEED: "
     
-    buffer_len  = 40
+    buffer_len  = 400
    
     init_length db 5
     init_food_number db 5
@@ -82,17 +110,31 @@ locals
     seed		dw 	0
     seed2		dw	0
 
+
 .code
 org 100h
 start:
+    
+    
+restart:
     mov ax, 0003h
 	int	10h
     
+    mov head, 0
+    mov tail, 0
+    mov snake_trav, 1
+    mov max_length, 0
+    mov eaten, 0
+    mov speed, 7
+    mov next_direction, 3
 
     call init_help
     call init_food
     call init_snake; напечать змейку в начале
     call draw_walls
+    
+
+    
         mov al, song_2_len
         mov song_counter, al
         mov ax, offset song_2
@@ -140,7 +182,7 @@ main:
 
 
     jmp main
-GAME_OVER:
+
 exit:
     mov dh, 0
     mov dl, 0
@@ -180,6 +222,7 @@ update_head_coordinates proc
         jne @@cut
         call inc_head
         call set_head_coordinates
+        inc eaten
 
             mov al, song_1_len
             mov song_counter, al
@@ -1130,5 +1173,82 @@ init_help proc
     ret
     ret
 init_help endp
+
+GAME_OVER proc
+    mov ah, 00
+    mov al, 03  ; text mode 80x25 16 colours
+    int 10h
+    
+
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov  al, 1
+    mov  bp, offset game_over_str ;STRING TO DISPLAY.
+    mov  bh, 0
+    mov  bl, 00000100b
+    mov  cx, game_over_str_len 
+    mov  dl, 0 ;X (SCREEN COORDINATE). 
+    mov  dh, 0 ;Y (SCREEN COORDINATE). 
+    int  10h ;BIOS SCREEN SERVICES.
+
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov  al, 1
+    mov  bp, offset maxlength_str ;STRING TO DISPLAY.
+    mov  bh,0 ;PAGE (ALWAYS ZERO).
+    mov  bl,0001101b
+    mov  cx,12 ;STRING LENGTH.
+    mov  dl,10 ;X (SCREEN COORDINATE). 
+    mov  dh,20 ;Y (SCREEN COORDINATE). 
+    int  10h ;BIOS SCREEN SERVICES. 
+    
+    mov ax, max_length
+    call print_ax_dec
+
+    @@EATEN:
+        mov  ah, 13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+        mov  al, 1
+        mov  bp, offset eaten_str ;STRING TO DISPLAY.
+        mov  bh, 0 ;PAGE (ALWAYS ZERO).
+        mov  bl, 0001101b
+        mov  cx, 12 ;STRING LENGTH.
+        mov  dl, 10 ;X (SCREEN COORDINATE). 
+        mov  dh, 21 ;Y (SCREEN COORDINATE). 
+        int  10h ;BIOS SCREEN SERVICES. 
+        
+
+        mov ax, eaten
+        call print_ax_dec
+
+        mov  dl, 16 
+        mov  dh, 21 
+        xor bx, bx
+        mov ah, 02
+        int 10h
+
+        mov ah, 9   ; номер функции 
+        mov al, '$'
+        mov cx, 1   ; число повторений
+        mov bl, 0000010b ; арибут
+        int 10h
+
+    @@PRESS_ANY_KEY:
+        mov  ah, 13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+        mov  al, 1
+        mov  bp, offset press_any_key_msg ;STRING TO DISPLAY.
+        mov  bh, 0 ;PAGE (ALWAYS ZERO).
+        mov  bl, 10110001b
+        mov  cx, press_any_key_msg_len ;STRING LENGTH.
+        mov  dl, 27 ;X (SCREEN COORDINATE). 
+        mov  dh, 23 ;Y (SCREEN COORDINATE). 
+        int  10h ;BIOS SCREEN SERVICES. 
+    
+    call hide_cursor
+
+    mov ah, 0
+    int 16h
+    jmp restart
+    ret
+GAME_OVER endp
+
+
 end start
 
