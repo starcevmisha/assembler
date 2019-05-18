@@ -2,6 +2,31 @@
 .386
 locals
 .data
+    help_msg    db "Hello. This is SNAKE game by @starcev_misha 2019", 13, 10
+                db 10 dup(20h), "How to play?", 10, 13
+                db 10 dup(20h),"    W     - Up", 13,10
+                db 10 dup(20h),"    A     - Left", 13,10
+                db 10 dup(20h),"    S     - Down", 13,10
+                db 10 dup(20h),"    D     - Right", 13,10
+                db 10 dup(20h),"    SPACE - Pause", 13,10
+                db 10 dup(20h),"    F1    - Help message", 10,10,10,13
+
+                db 10 dup(20h),"WALLS:", 13,10
+                db 10 dup(20h),"    O     - Teleport", 13,10
+                db 10 dup(20h),"    Z     - Pruzhina", 13,10
+                db 10 dup(20h),"    #     - Death", 13,10,10,10
+
+                db 10 dup(20h),"YEDA:", 13,10
+                db 10 dup(20h),"    $     - +1 Length", 13,10
+                db 10 dup(20h),"    ",171,"     - -1 Length", 13,10
+                db 10 dup(20h),"    X     - Death", 13,10
+
+                db "", 13,10
+                db 10 dup(20h),"EAT MORE!", 13,10
+    help_msg_len equ $ - help_msg 
+    contacts    db "@starcev_misha"
+    
+
     ASCII   db "0000 ","$"           ; buffer for ASCII string
 
     buffer  db 6 dup(0), "$"
@@ -29,6 +54,7 @@ locals
     snake_trav  dw 1
 
     is_pause db 0
+    is_help db 0
     speed dw 7
 
     max_length dw 0
@@ -63,7 +89,7 @@ start:
 	int	10h
     
 
-
+    call init_help
     call init_food
     call init_snake; напечать змейку в начале
     call draw_walls
@@ -73,78 +99,25 @@ start:
         mov song_offset, ax 
 
 main:    
-    mov dh, 1
-    mov dl, 1
-    xor bx, bx
-    mov ah, 02
-    int 10h
-    mov ax, head
-    call print_ax
-
-    mov dh, 2
-    mov dl, 1
-    xor bx, bx
-    mov ah, 02
-    int 10h
-    call get_head_coordinates ;; cx
-    mov ax, cx
-    call print_ax
-    
-    mov dh, 3
-    mov dl, 1
-    xor bx, bx
-    mov ah, 02
-    int 10h
-    call get_prev_head_coordinates ;; cx
-    mov ax, cx
-    call print_ax
-
-
-
-    mov dh, 4
-    mov dl, 1
-    xor bx, bx
-    mov ah, 02
-    int 10h
-    mov ax, tail
-    call print_ax
-
-    mov dh, 5
-    mov dl, 1
-    xor bx, bx
-    mov ah, 02
-    int 10h
-    mov ax, snake_trav
-    call print_ax
-
-
-
-    ; mov si, [head]
-    ; shl si, 1
-
-
-    ; mov dh, 2
-    ; mov dl, 2
-    ; xor bx, bx
-    ; mov ah, 02
-    ; int 10h
-    ; mov ax, snake_body[si]
-    ; call print_ax
-    ; mov dh, 0
-    ; mov dl, 0
-    ; xor bx, bx
-    ; mov ah, 02
-    ; int 10h
-    ; mov ax, speed
-    ; call print_ax
-
-
     cmp is_pause, 0
         je @@not_pause
         mov ah, 0
         int 16h
         mov is_pause, 0
     @@not_pause:
+
+    call key_press
+
+    cmp is_help, 0
+        je @@not_help
+        mov ah, 0
+        int 16h
+        mov is_help, 0
+        
+        mov ah, 05h
+        mov al, 0h
+        int 10h
+    @@not_help:
  
     call print_stat
 
@@ -154,7 +127,6 @@ main:
 
     @@without_song:
     call spawn_food
-    call key_press
     
     call print_head
     call update_head_coordinates    ;; Обновляем координаты с учетом стен
@@ -694,6 +666,14 @@ key_press proc
     mov is_pause, 1
     jmp ret1
     @@nxt8:
+
+    ;; f1 - help
+    cmp ah, 3Bh
+    jne @@nxt9
+    mov is_help, 1
+    call print_help
+    jmp ret1
+    @@nxt9:
    
  
     ret1: 
@@ -1104,5 +1084,51 @@ print_stat proc
     call print_ax_dec
     ret
 print_stat endp
+
+print_help proc
+    mov ah, 05h
+    mov al, 01h
+    int 10h
+
+    ret
+print_help endp
+
+init_help proc
+    mov ah, 05h
+    mov al, 01h
+    int 10h
+
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov  al, 1
+    mov  bp, offset help_msg ;STRING TO DISPLAY.
+    mov  bh,1
+    mov  bl,0001101b
+    mov  cx, help_msg_len ;STRING LENGTH. 
+    mov  dl, 10 ;X (SCREEN COORDINATE). 
+    mov  dh, 3 ;Y (SCREEN COORDINATE). 
+    int  10h ;BIOS SCREEN SERVICES.
+
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov al, 1
+    mov  bp, offset contacts ;STRING TO DISPLAY.
+    mov  bh,1
+    mov  bl, 010101111b
+    mov  cx, 14 ;STRING LENGTH. 
+    mov  dl, 39 ;X (SCREEN COORDINATE). 
+    mov  dh, 2 ;Y (SCREEN COORDINATE). 
+    int  10h ;BIOS SCREEN SERVICES.
+    
+    mov ah, 05h
+    mov al, 00h
+    int 10h
+
+    mov dh, 80
+    mov dl, 25
+    mov bh, 1
+    mov ah, 02
+    int 10h
+    ret
+    ret
+init_help endp
 end start
 
