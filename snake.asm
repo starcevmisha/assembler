@@ -3,9 +3,17 @@
 locals
 .data
     ASCII   db "0000 ","$"           ; buffer for ASCII string
+
+    buffer  db 6 dup(0), "$"
+    bufferend db 0
+
+    length_str db "LENGTH: $"
+    maxlength_str db "MAX LENGTH: $"
+    speed_str db "SPEED: $"
+    
     buffer_len  = 40
    
-    init_length db 1
+    init_length db 5
     init_food_number db 5
     next_direction db 3
 
@@ -23,13 +31,16 @@ locals
     is_pause db 0
     speed dw 7
 
+    max_length dw 0
+    eaten dw 0
+
     ;; музыка
     freqs  dw 9121,8609,8126,7670,7239,6833,6449,6087,5746,5423,5119,4831,4560,4304,4063,3834,3619,3416,3224,3043,2873,2711,2559,2415,2280,2152,2031,1917,1809,1715,1612,1521,1436,1355,1292,1207
 
     song_counter db 3
     song_offset dw 0
     
-    song_1      db 1,1, 1,3, 2,1, 1,6 ;; октава, клавиша
+    song_1      db 2,1, 1,3, 2,1, 2,6 ;; октава, клавиша
     song_1_len  db 4-1
 
     song_2      db 0,1, 2,2, 0,3, 0,4
@@ -51,6 +62,8 @@ start:
     mov ax, 0003h
 	int	10h
     
+
+
     call init_food
     call init_snake; напечать змейку в начале
     call draw_walls
@@ -58,10 +71,8 @@ start:
         mov song_counter, al
         mov ax, offset song_2
         mov song_offset, ax 
+
 main:    
-
-
-
     mov dh, 1
     mov dl, 1
     xor bx, bx
@@ -107,6 +118,7 @@ main:
     call print_ax
 
 
+
     ; mov si, [head]
     ; shl si, 1
 
@@ -134,7 +146,8 @@ main:
         mov is_pause, 0
     @@not_pause:
  
- 
+    call print_stat
+
     cmp song_counter, 0
     jl @@without_song
         call play_note
@@ -151,7 +164,6 @@ main:
     @@next:
     call hide_cursor
 
-    ; call print_statistics
     call delay
 
 
@@ -759,6 +771,39 @@ print_ax proc
     ret
 print_ax endp
 
+print_ax_dec proc
+    push ax            ; Save modified registers
+    push bx
+    push dx
+    
+    mov bx, 10
+    mov di,OFFSET bufferend
+    sub di, 3
+    .convert:
+    xor dx, dx         ; Clear dx for division
+    div bx             ; Divide by base
+    add dl, '0'        ; Convert to printable char
+    cmp dl, '9'        ; Hex digit?
+    jbe .store         ; No. Store it
+    add dl, 'A'-'0'-10 ; Adjust hex digit
+    .store:
+    dec di             ; Move back one position
+    mov [di], dl       ; Store converted digit
+    and ax, ax         ; Division result 0?
+    jnz .convert       ; No. Still digits to convert
+    
+    mov dx, di ; DOS 1+ WRITE STRING TO STANDARD OUTPUT
+    mov ah,9            ; DS:DX->'$'-terminated string
+    int 21h             ; maybe redirected under DOS 2+ for output to file
+    
+    pop dx             ; Restore modified registers
+    pop bx
+    pop ax
+    
+
+    ret
+print_ax_dec endp
+
 get_prev_head proc
     
     mov bx, head
@@ -986,5 +1031,78 @@ play_note proc
     @@ret1:
     ret
 play_note endp
+
+get_length proc
+    mov ax, head
+    sub ax, tail
+    cmp snake_trav ,0 
+    jg @@next1
+        neg ax
+    @@next1:
+    
+    cmp ax, 0   ; при кольцевании массива
+    jg @@next2
+        add ax, buffer_len 
+    
+    @@next2:
+
+    cmp ax, max_length
+    jl @@ret1
+        mov max_length, ax
+    @@ret1:
+    ret
+get_length endp
+
+print_stat proc
+    mov dh, 24
+    mov dl, 0
+    xor bx, bx
+    mov ah, 02
+    int 10h
+
+    push ds
+    pop es
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov al, 1
+    mov  bp,offset length_str ;STRING TO DISPLAY.
+    mov  bh,0 ;PAGE (ALWAYS ZERO).
+    mov  bl,0001101b
+    mov  cx,8 ;STRING LENGTH.
+    mov  dl,0 ;X (SCREEN COORDINATE). 
+    mov  dh,24 ;Y (SCREEN COORDINATE). 
+    int  10h ;BIOS SCREEN SERVICES. 
+    
+    call get_length
+    call print_ax_dec
+    
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov al, 1
+    mov  bp,offset maxlength_str ;STRING TO DISPLAY.
+    mov  bh,0 ;PAGE (ALWAYS ZERO).
+    mov  bl,0001101b
+    mov  cx,12 ;STRING LENGTH. 
+    mov dh, 24
+    mov dl, 13
+    int  10h ;BIOS SCREEN SERVICES.
+
+    mov ax, max_length
+    call print_ax_dec
+
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov al, 1
+    mov  bp, offset speed_str ;STRING TO DISPLAY.
+    mov  bh,0 ;PAGE (ALWAYS ZERO).
+    mov  bl,0001101b
+    mov  cx,7 ;STRING LENGTH. 
+    mov  dl,30 ;X (SCREEN COORDINATE). 
+    mov  dh,24 ;Y (SCREEN COORDINATE). 
+    int  10h ;BIOS SCREEN SERVICES.
+
+    xor ax, ax
+    mov ax, 11
+    sub ax, speed
+    call print_ax_dec
+    ret
+print_stat endp
 end start
 
