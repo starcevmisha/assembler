@@ -7,7 +7,18 @@ locals
     incorrect_init_food_str     db "incorrect init food number. Should be 1<= init number <= 40", 10,13, "$"
     incorrect_selfcross_str     db "incorrect self-cross type. Should be 0<= type <= 2", 10,13, "$"
 
+
+
     args_buffer      db 30 DUP (0)
+
+    console_help_msg    db "Hello. This is SNAKE game by @starcev_misha 2019", 13, 10
+                        db "    l - init length", 13, 10
+                        db "    f - init number of food", 13, 10
+                        db "    w - wall type: 0-death, 1-pruzhina, 2-portal", 13, 10
+                        db "    x - self-cross type: 0-death, 1-cut, 2-ignore", 13, 10
+                        db "    h - show this help message", 13, 10, 0, "$"
+
+
     help_msg    db "Hello. This is SNAKE game by @starcev_misha 2019", 13, 10
                 db 10 dup(20h), "How to play?", 10, 13
                 db 10 dup(20h),"    W     - Up", 13,10
@@ -53,8 +64,11 @@ locals
                     db 18 dup (20h), " $$$$$$/      $/     $$$$$$$$/ $$/   $$/   ",10,13
     game_over_str_len equ $ - game_over_str 
 
-    press_any_key_msg db "Press Any key To Restart"
+    press_any_key_msg db " Press Any key To Restart "
     press_any_key_msg_len equ $ - press_any_key_msg
+
+    press_f1_msg db "Press F1 To HELP"
+    press_f1_msg_len equ $ - press_f1_msg
 
 
     contacts    db "@starcev_misha"
@@ -72,7 +86,7 @@ locals
     
     buffer_len  = 400
    
-    init_length db 1
+    init_length db 5
     init_food_number db 5
     next_direction db 3
 
@@ -220,7 +234,7 @@ incorrect_selfcross:
     int 21h
 
 print_concole_help:
-    mov dx, offset help_msg
+    mov dx, offset console_help_msg
     mov ah, 09h
     int 21h
     
@@ -1288,6 +1302,17 @@ print_stat proc
     mov ax, 11
     sub ax, speed
     call print_ax_dec
+
+    mov  ah,13h ;SERVICE TO DISPLAY STRING WITH COLOR.
+    mov al, 1
+    mov  bp, offset press_f1_msg ;STRING TO DISPLAY.
+    mov  bh,0 ;PAGE (ALWAYS ZERO).
+    mov  bl, 01010010b
+    mov  cx,press_f1_msg_len ;STRING LENGTH. 
+    mov  dl,63 ;X (SCREEN COORDINATE). 
+    mov  dh,24 ;Y (SCREEN COORDINATE). 
+    int  10h ;BIOS SCREEN SERVICES.
+
     ret
 print_stat endp
 
