@@ -2,9 +2,10 @@
 .386
 locals
 .data
-    incorrect_init_length_str db "incorrect init length. Should be 1<= length <= 40", 10,13, "$"
-    incorrect_wall_type_str db "incorrect wall type. Should be 0<= length <= 2", 10,13, "$"
-    incorrect_init_food_str db "incorrect init food number. Should be 1<= length <= 40", 10,13, "$"
+    incorrect_init_length_str   db "incorrect init length. Should be 1<= length <= 40", 10,13, "$"
+    incorrect_wall_type_str     db "incorrect wall type. Should be 0<= type <= 2", 10,13, "$"
+    incorrect_init_food_str     db "incorrect init food number. Should be 1<= init number <= 40", 10,13, "$"
+    incorrect_selfcross_str     db "incorrect self-cross type. Should be 0<= type <= 2", 10,13, "$"
 
     args_buffer      db 30 DUP (0)
     help_msg    db "Hello. This is SNAKE game by @starcev_misha 2019", 13, 10
@@ -139,6 +140,10 @@ start:
 	    cmp bl, [args_buffer]
         je change_init_food
 
+        mov bl, 'x'    ;;self-cross
+	    cmp bl, [args_buffer]
+        je change_selfcross
+
         mov bl, 'h'    ;;help
 	    cmp bl, [args_buffer]
         je print_concole_help
@@ -163,6 +168,16 @@ change_init_wall:
     cmp al, 2
     jg incorrect_wall_type
     mov wall_type, al
+    jmp args_loop
+
+change_selfcross:
+    call read_next_arg
+    call str_to_int
+    cmp al, 0
+    jl incorrect_selfcross
+    cmp al, 2
+    jg incorrect_selfcross
+    mov intersection_type, al
     jmp args_loop
 
 change_init_food:
@@ -191,6 +206,13 @@ incorrect_wall_type:
     int 21h
 incorrect_init_food:
     mov dx, offset incorrect_init_food_str
+    mov ah, 09h
+    int 21h
+    
+    mov ax,4C00h
+    int 21h
+incorrect_selfcross:
+    mov dx, offset incorrect_selfcross_str
     mov ah, 09h
     int 21h
     
@@ -653,6 +675,7 @@ draw_walls proc
     mov cx, 80
     int 10h
 
+
     ;; нижняя стена - прыгун
     mov dh, 23
     mov dl, 0
@@ -693,6 +716,47 @@ draw_walls proc
         jg @@left_loop
     pop cx
 
+
+
+    ;; среднbq крест - прыгун
+    mov dh, 12
+    mov dl, 33
+    xor bx, bx
+    mov ah, 02
+    int 10h
+
+    mov ah, 9h
+    mov al, 'Z'
+    mov bh, 0
+    mov bl, 1100b
+    mov cx, 9
+    int 10h
+    
+    mov dh, 9
+    mov dl, 37
+    mov al, 'Z'
+    push 7
+    @@center_loop:
+        mov cx, 1
+        mov ah, 02
+        int 10h
+
+        mov ah, 09h
+        mov bl, 1100b
+        int 10h
+
+
+        int 10h
+        inc dh
+        pop cx 
+        dec cx
+        push cx
+        cmp cx, 0
+        jg @@center_loop
+    pop cx
+
+
+
     ;; правая стена
     mov dh, 1
     mov dl, 79 
@@ -731,6 +795,9 @@ draw_walls proc
         push cx
         cmp cx, 0
         jg @@right_loop
+
+
+
     pop cx
 
     ret
