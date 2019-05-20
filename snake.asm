@@ -4,7 +4,7 @@ locals
 .data
     incorrect_init_length_str   db "incorrect init length. Should be 1<= length <= 40", 10,13, "$"
     incorrect_wall_type_str     db "incorrect wall type. Should be 0<= type <= 2", 10,13, "$"
-    incorrect_init_food_str     db "incorrect init food number. Should be 1<= init number <= 40", 10,13, "$"
+    incorrect_init_food_str     db "incorrect init food number. Should be 1<= init number <= 127", 10,13, "$"
     incorrect_selfcross_str     db "incorrect self-cross type. Should be 0<= type <= 2", 10,13, "$"
 
 
@@ -86,10 +86,12 @@ locals
     
     buffer_len  = 400
    
-    init_length db 5
-    init_food_number db 5
-    next_direction db 3
-
+    init_length         db 10
+    init_food_number    db 5
+    next_direction      db 3
+    grow_delay          db 0
+    super_food_grow     db 5
+ 
     snake_body  dw 20*256+20, 2000 dup('*')
     directions dw 0100h, 0FF00h, 00FFh, 0001h ; down, up, left, right
 
@@ -169,7 +171,7 @@ change_init_length:
     call str_to_int
     cmp al, 0
     jle incorrect_init_length
-    cmp al, 40
+    cmp al, 127
     jge incorrect_init_length
     mov init_length, al
     jmp args_loop
@@ -253,9 +255,12 @@ restart:
     mov speed, 7
     mov next_direction, 3
 
+    mov al, init_length
+    mov grow_delay, al
+
     call init_help
     call init_food
-    call init_snake; напечать змейку в начале
+    ; call init_snake; напечать змейку в начале
     call draw_walls
     
 
@@ -353,16 +358,29 @@ update_head_coordinates proc
 
     @@grow:
         cmp al, '$'
-        jne @@cut
-        call inc_head
-        call set_head_coordinates
+        jne @@super_grow
         inc eaten
 
             mov al, song_1_len
             mov song_counter, al
             mov ax, offset song_1
-            mov song_offset, ax 
-        jmp @@ret
+            mov song_offset, ax
+            inc grow_delay
+
+        jmp @@update
+    
+    @@super_grow:
+        cmp al, 3
+        jne @@cut
+        mov al, super_food_grow
+        add grow_delay, al
+
+            mov al, song_1_len
+            mov song_counter, al
+            mov ax, offset song_1
+            mov song_offset, ax
+        
+        jmp @@update
 
     @@cut:
         cmp al, 171
@@ -430,7 +448,13 @@ update_head_coordinates proc
     @@update:
         call inc_head
         call set_head_coordinates
+        
+        cmp grow_delay, 0 
+        jg @@ret1
         call remove_tail
+        jmp @@ret
+    @@ret1:
+        dec grow_delay    
     @@ret:
         ret
 update_head_coordinates endp
@@ -603,9 +627,13 @@ spawn_food proc
     cmp bx, 1
     je @@food
     
-        mov bx, ax
-            cmp bx, 3
+    mov bx, ax
+    cmp bx, 3
     je @@death
+
+    mov bx, ax
+    cmp bx, 4
+    je @@super_food
 
     mov bx, ax
     cmp bx, 2
@@ -617,7 +645,10 @@ spawn_food proc
         mov al, '$'
         mov bl, 000000010b ; арибут
         jmp @@print
-    
+    @@super_food:
+         mov al, 3
+        mov bl, 000000100b ; арибут
+        jmp @@print
     @@death: 
         mov al, 'X'
         mov bl, 000000110b ; арибут
@@ -1173,6 +1204,7 @@ check_intersect proc
                 call inc_tail
                 cmp ax, tail
                 jne @@cut
+                mov grow_delay, 0
 
             
 
@@ -1249,6 +1281,11 @@ get_length proc
     cmp ax, max_length
     jl @@ret1
         mov max_length, ax
+    
+    mov  bx,buffer_len
+    cmp max_length, bx
+    jne @@ret1
+        mov max_length, 0
     @@ret1:
     ret
 get_length endp
